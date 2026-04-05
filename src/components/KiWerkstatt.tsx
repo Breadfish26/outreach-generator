@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { generateFullSequenceAi } from '../logic/aiGenerator';
 import { EmailTemplate, EmailStep, ApiSettings } from '../types';
 import { substituteVariables } from '../logic/templates';
+import { leadService } from '../lib/leads';
+import { Lead } from '../types';
 
 interface KiWerkstattProps {
   apiSettings: ApiSettings;
@@ -38,6 +40,45 @@ const KiWerkstatt: React.FC<KiWerkstattProps> = ({ apiSettings, senderName, onSe
       }, apiSettings.geminiKey);
       
       setGeneratedSequence(sequence);
+
+      // --- SAVE TO SUPABASE ---
+      try {
+          const leadDraft: Lead = {
+              company,
+              website,
+              name: contactName,
+              email: '', // Let users add it later if not available
+              anrede: '',
+              painPoint: 'custom',
+              lastSent: '',
+              outreachSent: '',
+              f1Sent: '',
+              f2Sent: '',
+              f3Sent: '',
+              response: 'NO',
+              responseDate: '',
+              status: 'Open',
+              nextAction: 'Send Outreach',
+              notes: painPoint
+          };
+
+          // 1. Ensure lead exists in DB and get its ID
+          await leadService.upsertLeads([leadDraft]);
+          
+          // 2. Refresh from DB to get the ID (since it might be auto-generated)
+          const allLeads = await leadService.getAllLeads();
+          const savedLead = allLeads.find(l => l.company === company);
+          
+          if (savedLead?.id) {
+              // 3. Save the actual sequence
+              await leadService.saveSequence(savedLead.id, sequence);
+              console.log('Sequence auto-saved to dashboard!');
+          }
+      } catch (saveError) {
+          console.error('Failed to auto-save to dashboard:', saveError);
+      }
+      // -------------------------
+
     } catch (error: any) {
       alert("Generierung fehlgeschlagen: " + error.message);
     } finally {

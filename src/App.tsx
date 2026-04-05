@@ -6,8 +6,10 @@ import { useLocalStorage } from './hooks'
 import { TemplateEditor } from './components/TemplateEditor'
 import KiWerkstatt from './components/KiWerkstatt'
 import { DEFAULT_TEMPLATES } from './logic/templates'
+import { substituteVariables } from './logic/templates'
 import { ApiSettings } from './types'
 import { generateAiEmail } from './logic/aiGenerator'
+import { leadService } from './lib/leads'
 
 const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv";
 
@@ -28,6 +30,8 @@ function App() {
   const [senderName, setSenderName] = useLocalStorage<string>('sender_name', 'Kerstin Grosche');
   
   const [activeTab, setActiveTab] = useState<'dashboard' | 'templates' | 'ki-werkstatt'>('dashboard');
+  const [savedSequence, setSavedSequence] = useState<any | null>(null);
+  const [showSequenceModal, setShowSequenceModal] = useState(false);
   const [customTemplates, setCustomTemplates] = useLocalStorage<FullTemplates>('outreach_templates', DEFAULT_TEMPLATES);
   const [apiSettings, setApiSettings] = useLocalStorage<ApiSettings>('api_settings', {
     geminiKey: import.meta.env.VITE_GEMINI_KEY || '',
@@ -47,20 +51,24 @@ function App() {
     return true; // Simplified for now
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setLoading(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target?.result as string;
       try {
         const data = parseCSV(text);
-        setLeads(data);
+        // Sync to Supabase
+        await leadService.upsertLeads(data);
+        // Reload from source of truth
+        await loadData();
         setError(null);
       } catch (err) {
-        setError("Fehler beim Lesen der CSV-Datei. Bitte prüfen Sie das Format.");
+        console.error(err);
+        setError("Fehler beim Verarbeiten der CSV. Sind die Supabase-Keys korrekt?");
       } finally {
         setLoading(false);
       }
@@ -72,10 +80,18 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchSheetData(sheetUrl);
-      setLeads(data);
+      // First try to load from Supabase
+      const dbLeads = await leadService.getAllLeads();
+      if (dbLeads.length > 0) {
+        setLeads(dbLeads);
+      } else if (sheetUrl) {
+        // Fallback to Google Sheet if DB is empty
+        const data = await fetchSheetData(sheetUrl);
+        setLeads(data);
+      }
     } catch (err) {
-      setError("Fehler beim Laden der Tabelle. Bitte URL prüfen.");
+      console.error(err);
+      setError("Daten konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
@@ -107,6 +123,25 @@ function App() {
     const email = generateEmailForLead(lead, customTemplates);
     setSelectedLead(lead);
     setPreviewEmail(email);
+  };
+
+  const handleViewSavedSequence = async (lead: Lead) => {
+      if (!lead.id) return;
+      setLoading(true);
+      try {
+          const seq = await leadService.getSequenceForLead(lead.id);
+          if (seq) {
+              setSavedSequence(seq);
+              setSelectedLead(lead);
+              setShowSequenceModal(true);
+          } else {
+              alert("Keine gespeicherte KI-Sequenz gefunden. Bitte erzeuge eine in der KI-Werkstatt.");
+          }
+      } catch (err) {
+          console.error(err);
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleCopy = async () => {
@@ -238,18 +273,32 @@ function App() {
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.email}</div>
                     </td>
                     <td>
-                      <span className={`action-badge ${lead.nextAction.toLowerCase().includes('outreach') ? 'outreach' : 'followup'} ${lead.status === 'Closed' ? 'closed' : ''}`}>
-                         {lead.nextAction}
+                      <span className={`action-badge ${
+                          lead.status === ('generated' as any) ? 'generated' : 
+                          lead.nextAction.toLowerCase().includes('outreach') ? 'outreach' : 
+                          'followup'} ${lead.status === 'Closed' ? 'closed' : ''}`}>
+                         {lead.status === ('generated' as any) ? 'KI-Plan Bereit' : lead.nextAction}
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button 
-                        className="btn-primary"
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                        onClick={() => handlePreview(lead)}
-                      >
-                        Email generieren
-                      </button>
+                      <div className="flex gap-2 justify-end">
+                        {lead.status === ('generated' as any) && (
+                            <button 
+                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid var(--primary)' }}
+                                onClick={() => handleViewSavedSequence(lead)}
+                            >
+                                ✨ KI-Sequenz
+                            </button>
+                        )}
+                        <button 
+                            className="btn-primary"
+                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                            onClick={() => handlePreview(lead)}
+                        >
+                            Email generieren
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -282,24 +331,19 @@ function App() {
       ) : null}
 
       {/* Preview Modal */}
-      {selectedLead && previewEmail && (
+      {selectedLead && previewEmail && !showSequenceModal && (
         <div className="modal-overlay" onClick={() => setSelectedLead(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
+            {/* ... existing modal ... */}
             <div className="modal-header">
               <h3>Email-Vorschau: {selectedLead.company}</h3>
-              <button 
-                onClick={() => setSelectedLead(null)} 
-                className="btn-secondary" 
-                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
-              >✕</button>
+              <button onClick={() => setSelectedLead(null)} className="btn-secondary">✕</button>
             </div>
             <div className="modal-body">
                <div className="email-preview-container">
                   <div className="email-section">
                     <span className="section-label">Betreff</span>
-                    <div className="section-content" style={{ fontWeight: 600, color: 'var(--primary)' }}>
-                      {previewEmail.subject}
-                    </div>
+                    <div className="section-content" style={{ fontWeight: 600, color: 'var(--primary)' }}>{previewEmail.subject}</div>
                   </div>
                   <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
                   <div className="email-section">
@@ -309,16 +353,55 @@ function App() {
                </div>
             </div>
             <div className="modal-footer">
-               <button 
-                 onClick={handleCopy} 
-                 className={`btn-primary ${copyStatus ? 'btn-copied' : ''}`}
-               >
-                 {copyStatus ? 'Kopiert!' : 'Kopieren & Schließen'}
-               </button>
+               <button onClick={handleCopy} className={`btn-primary ${copyStatus ? 'btn-copied' : ''}`}>{copyStatus ? 'Kopiert!' : 'Kopieren & Schließen'}</button>
                <button onClick={() => setSelectedLead(null)} className="btn-secondary">Abbrechen</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* SAVED SEQUENCE MODAL */}
+      {selectedLead && showSequenceModal && savedSequence && (
+          <div className="modal-overlay" onClick={() => { setSelectedLead(null); setShowSequenceModal(false); }}>
+              <div className="modal-content" style={{ maxWidth: '900px' }} onClick={e => e.stopPropagation()}>
+                  <div className="modal-header">
+                      <h3>Gespeicherte KI-Sequenz: {selectedLead.company}</h3>
+                      <button onClick={() => { setSelectedLead(null); setShowSequenceModal(false); }} className="btn-secondary">✕</button>
+                  </div>
+                  <div className="modal-body">
+                      <div className="grid grid-2" style={{ gap: '1.5rem' }}>
+                          {Object.entries(savedSequence).map(([step, email]: [any, any], idx) => (
+                              <div key={step} className="variant-glass" style={{ borderRadius: '12px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                  <div className="flex justify-between" style={{ justifyContent: 'space-between', width: '100%' }}>
+                                      <span className="badge badge-primary">{step.toUpperCase()}</span>
+                                      <button 
+                                          className="btn-secondary" 
+                                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                                          onClick={() => {
+                                              const data = { name: selectedLead.name, company: selectedLead.company, website: selectedLead.website, sender_name: senderName };
+                                              const s = substituteVariables(email.subject, data as any);
+                                              const b = substituteVariables(email.body, data as any);
+                                              navigator.clipboard.writeText(`Betreff: ${s}\n\n${b}`);
+                                              setCopyStatus(true);
+                                              setTimeout(() => setCopyStatus(false), 2000);
+                                          }}
+                                      >Kopieren</button>
+                                  </div>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)', marginTop: '0.5rem' }}>
+                                      Betreff: {substituteVariables(email.subject, { company: selectedLead.company, website: selectedLead.website } as any)}
+                                  </div>
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'pre-wrap', maxHeight: '150px', overflowY: 'auto', background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
+                                      {substituteVariables(email.body, { name: selectedLead.name, company: selectedLead.company, website: selectedLead.website, sender_name: senderName } as any)}
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+                  <div className="modal-footer">
+                      <button onClick={() => { setSelectedLead(null); setShowSequenceModal(false); }} className="btn-primary">Schließen</button>
+                  </div>
+              </div>
+          </div>
       )}
 
       {copyStatus && <div className="toast-success">E-Mail in Zwischenablage kopiert!</div>}

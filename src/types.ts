@@ -29,6 +29,7 @@ export interface EmailTemplate {
 export type FullTemplates = Record<string, Record<EmailStep, EmailTemplate>>;
 
 export interface Lead {
+  id?: string; // Added for Supabase support
   anrede: Anrede;
   name: string;
   company: string;
