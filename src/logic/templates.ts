@@ -47,13 +47,13 @@ export const getGreetingForLead = (lead: Lead): string => {
   const { anrede, name } = lead;
   const hasName = name && name.trim().length > 0;
   
-  if (!hasName) return "Sehr geehrte Damen und Herren,";
+  if (!hasName) return "Hallo,";
 
   switch (anrede) {
     case 'Herr': return `Hallo Herr ${name},`;
     case 'Frau': return `Hallo Frau ${name},`;
     case 'Familie': return `Hallo Familie ${name},`;
-    default: return hasName ? `Hallo ${name},` : "Sehr geehrte Damen und Herren,";
+    default: return hasName ? `Hallo ${name},` : "Hallo,";
   }
 };
 
@@ -62,7 +62,7 @@ export const getGreetingManual = (step: 'outreach' | 'f1' | 'f3', state: FormSta
   const hasName = contact_name.trim().length > 0;
 
   if (step === 'outreach') {
-    if (anrede_type === 'formal') return "Sehr geehrte Damen und Herren,";
+    if (anrede_type === 'formal') return hasName ? `Sehr geehrter Herr/Frau ${contact_name},` : "Hallo,";
     return hasName ? `Hi ${contact_name},` : "Hallo,";
   }
 

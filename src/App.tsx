@@ -4,7 +4,10 @@ import { fetchSheetData, parseCSV } from './logic/sheetParser'
 import { generateEmailForLead } from './logic/sequenceGenerator'
 import { useLocalStorage } from './hooks'
 import { TemplateEditor } from './components/TemplateEditor'
+import { KiWerkstatt } from './components/KiWerkstatt'
 import { DEFAULT_TEMPLATES } from './logic/templates'
+import { ApiSettings } from './types'
+import { generateAiEmail } from './logic/aiGenerator'
 
 const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv";
 
@@ -23,8 +26,19 @@ function App() {
   const [previewEmail, setPreviewEmail] = useState<GeneratedEmail | null>(null);
   const [copyStatus, setCopyStatus] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'templates'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'templates' | 'ki-werkstatt'>('dashboard');
   const [customTemplates, setCustomTemplates] = useLocalStorage<FullTemplates>('outreach_templates', DEFAULT_TEMPLATES);
+  const [apiSettings, setApiSettings] = useLocalStorage<ApiSettings>('api_settings', {
+    geminiKey: import.meta.env.VITE_GEMINI_KEY || '',
+    useAiFallback: true
+  });
+
+  // Ensure default key is applied if storage was initialized as empty
+  useEffect(() => {
+    if (!apiSettings.geminiKey && import.meta.env.VITE_GEMINI_KEY) {
+      setApiSettings({ ...apiSettings, geminiKey: import.meta.env.VITE_GEMINI_KEY });
+    }
+  }, []);
 
   // Today Due logic
   const isDueToday = (lead: Lead): boolean => {
@@ -121,6 +135,12 @@ function App() {
           onClick={() => setActiveTab('templates')}
         >
           Textbausteine
+        </button>
+        <button 
+          className={`nav-item ${activeTab === 'ki-werkstatt' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ki-werkstatt')}
+        >
+          ✨ KI-Werkstatt
         </button>
       </nav>
 
@@ -244,14 +264,20 @@ function App() {
             </table>
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'templates' ? (
         <section className="templates">
           <TemplateEditor 
             templates={customTemplates} 
             onSave={(updated) => setCustomTemplates(updated)} 
+            apiSettings={apiSettings}
+            onApiSettingsChange={setApiSettings}
           />
         </section>
-      )}
+      ) : activeTab === 'ki-werkstatt' ? (
+        <section className="ki-werkstatt">
+          <KiWerkstatt apiSettings={apiSettings} />
+        </section>
+      ) : null}
 
       {/* Preview Modal */}
       {selectedLead && previewEmail && (

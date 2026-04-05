@@ -79,3 +79,17 @@ export interface EmailSequence {
   followup2: string;
   followup3: string;
 }
+
+export interface ApiSettings {
+  geminiKey: string;
+  useAiFallback: boolean;
+}
+
+export interface AiPromptParams {
+  painPoint: string;
+  company: string;
+  website: string;
+  niche?: string;
+  step?: EmailStep;
+  notes?: string;
+}

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { FullTemplates, PainPoint, EmailStep, EmailTemplate } from '../types';
+import { FullTemplates, PainPoint, EmailStep, EmailTemplate, ApiSettings } from '../types';
 import { DEFAULT_TEMPLATES, substituteVariables } from '../logic/templates';
+import { generateAiEmail } from '../logic/aiGenerator';
 
 interface TemplateEditorProps {
   templates: FullTemplates;
   onSave: (templates: FullTemplates) => void;
+  apiSettings: ApiSettings;
+  onApiSettingsChange: (settings: ApiSettings) => void;
 }
 
 const SAMPLE_LEAD = {
@@ -30,13 +33,20 @@ const STEPS: { id: EmailStep; label: string }[] = [
   { id: 'followup3', label: 'Follow-up #3' }
 ];
 
-export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templates, onSave }) => {
+export const TemplateEditor: React.FC<TemplateEditorProps> = ({ 
+  templates, 
+  onSave, 
+  apiSettings, 
+  onApiSettingsChange 
+}) => {
   const [selectedPainPoint, setSelectedPainPoint] = useState<string>(PAIN_POINTS[0].id);
   const [selectedStep, setSelectedStep] = useState<EmailStep>('outreach');
+  const [showSettings, setShowSettings] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [niche, setNiche] = useState('Poolbau / Handwerk');
   
   const [currentTemplates, setCurrentTemplates] = useState<FullTemplates>(templates);
   
-  // Sync when props change (e.g. from local storage)
   useEffect(() => {
     setCurrentTemplates(templates);
   }, [templates]);
@@ -51,6 +61,32 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templates, onSav
       [field]: value
     };
     setCurrentTemplates(updated);
+  };
+
+  const handleAiRefine = async () => {
+    if (!apiSettings.geminiKey) {
+      alert("Bitte tragen Sie zuerst Ihren Gemini API-Key in den Einstellungen ein.");
+      setShowSettings(true);
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const template = await generateAiEmail({
+        painPoint: PAIN_POINTS.find(p => p.id === selectedPainPoint)?.label || selectedPainPoint,
+        company: SAMPLE_LEAD.company,
+        website: SAMPLE_LEAD.website,
+        niche: niche,
+        step: selectedStep
+      }, apiSettings.geminiKey);
+
+      handleUpdate('subject', template.subject);
+      handleUpdate('body', template.body);
+    } catch (err) {
+      alert("Fehler bei der KI-Generierung: " + (err instanceof Error ? err.message : "Unbekannter Fehler"));
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const saveAll = () => {
@@ -78,6 +114,40 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templates, onSav
 
   return (
     <div className="template-editor-view">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-1rem' }}>
+        <button 
+          className="btn-secondary" 
+          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+          onClick={() => setShowSettings(!showSettings)}
+        >
+          {showSettings ? '✕ Einstellungen schließen' : '⚙️ API-Einstellungen'}
+        </button>
+      </div>
+
+      {showSettings && (
+        <div className="card glassy" style={{ border: '1px solid var(--primary)', marginBottom: '1rem' }}>
+           <h4 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>KI Einstellungen (Gemini 1.5 Flash)</h4>
+           <div className="input-field">
+             <label>Gemini API Key</label>
+             <input 
+               type="password" 
+               value={apiSettings.geminiKey}
+               onChange={(e) => onApiSettingsChange({ ...apiSettings, geminiKey: e.target.value })}
+               placeholder="AI Studio API Key eintragen..."
+             />
+           </div>
+           <div className="input-field">
+             <label>Nische / Fokus (für KI-Prompt)</label>
+             <input 
+               type="text" 
+               value={niche}
+               onChange={(e) => setNiche(e.target.value)}
+               placeholder="z.B. Poolbau / Handwerk, Software SaaS, Zahnärzte..."
+             />
+           </div>
+        </div>
+      )}
+
       <div className="editor-controls">
         <div className="selection-group">
           <label>Problemstellung (Pain Point)</label>
@@ -100,6 +170,20 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({ templates, onSav
             {STEPS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </div>
+
+        <button 
+          onClick={handleAiRefine} 
+          className="btn-secondary" 
+          style={{ 
+            color: 'var(--primary)', 
+            borderColor: 'var(--primary)',
+            background: 'rgba(56, 189, 248, 0.05)',
+            fontWeight: 800
+          }}
+          disabled={isGenerating}
+        >
+          {isGenerating ? '⌛ Generiere...' : '✨ Mit KI generieren'}
+        </button>
 
         <div className="action-buttons-editor">
           <button onClick={saveAll} className="btn-primary">Speichern</button>
