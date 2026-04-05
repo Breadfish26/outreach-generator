@@ -144,6 +144,94 @@ function App() {
       }
   };
 
+  const handleDeleteLead = async (lead: Lead) => {
+    if (!lead.id) return;
+    if (window.confirm(`Möchtest du den Lead "${lead.company}" wirklich unwiderruflich löschen?`)) {
+      setLoading(true);
+      try {
+        await leadService.deleteLead(lead.id);
+        await loadData();
+      } catch (err) {
+        console.error(err);
+        alert("Fehler beim Löschen des Leads.");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleAdvanceStep = async (lead: Lead) => {
+    if (!lead.id) return;
+
+    const sequence: NextAction[] = [
+      'Send Outreach',
+      'Send Follow-up #1',
+      'Send Follow-up #2',
+      'Send Follow-up #3',
+      'Closed'
+    ];
+
+    const currentIndex = sequence.indexOf(lead.nextAction);
+    const nextIndex = Math.min(currentIndex + 1, sequence.length - 1);
+    const nextAction = sequence[nextIndex];
+    const today = new Date().toLocaleDateString('de-DE');
+
+    const updates: Partial<Lead> = {
+      nextAction: nextAction,
+      lastSent: today,
+      // Record specific date for this step
+      ...(lead.nextAction === 'Send Outreach' ? { outreachSent: today } : {}),
+      ...(lead.nextAction === 'Send Follow-up #1' ? { f1Sent: today } : {}),
+      ...(lead.nextAction === 'Send Follow-up #2' ? { f2Sent: today } : {}),
+      ...(lead.nextAction === 'Send Follow-up #3' ? { f3Sent: today } : {}),
+      // Automatically close if last step is reached
+      status: nextAction === 'Closed' ? 'Closed' : lead.status
+    };
+
+    setLoading(true);
+    try {
+      await leadService.updateLead(lead.id, updates);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Fehler beim Aktualisieren des Status.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStepBack = async (lead: Lead) => {
+    if (!lead.id) return;
+
+    const sequence: NextAction[] = [
+      'Send Outreach',
+      'Send Follow-up #1',
+      'Send Follow-up #2',
+      'Send Follow-up #3',
+      'Closed'
+    ];
+
+    const currentIndex = sequence.indexOf(lead.nextAction);
+    const nextIndex = Math.max(currentIndex - 1, 0);
+    const nextAction = sequence[nextIndex];
+
+    const updates: Partial<Lead> = {
+      nextAction: nextAction,
+      status: 'Open' // Always reopen when stepping back
+    };
+
+    setLoading(true);
+    try {
+      await leadService.updateLead(lead.id, updates);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Fehler beim Zurücksetzen des Status.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCopy = async () => {
     if (!previewEmail) return;
     const textToCopy = `Betreff: ${previewEmail.subject}\n\n${previewEmail.body}`;
@@ -273,12 +361,36 @@ function App() {
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.email}</div>
                     </td>
                     <td>
-                      <span className={`action-badge ${
-                          lead.status === ('generated' as any) ? 'generated' : 
-                          lead.nextAction.toLowerCase().includes('outreach') ? 'outreach' : 
-                          'followup'} ${lead.status === 'Closed' ? 'closed' : ''}`}>
-                         {lead.status === ('generated' as any) ? 'KI-Plan Bereit' : lead.nextAction}
-                      </span>
+                      <div className="flex gap-2">
+                        <span className={`action-badge ${
+                            lead.status === ('generated' as any) ? 'generated' : 
+                            lead.nextAction.toLowerCase().includes('outreach') ? 'outreach' : 
+                            'followup'} ${lead.status === 'Closed' ? 'closed' : ''}`}>
+                          {lead.status === ('generated' as any) ? 'KI-Plan Bereit' : lead.nextAction}
+                        </span>
+                        <div className="flex gap-1">
+                          {lead.status !== 'Closed' && (
+                            <button 
+                              className="btn-secondary" 
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.6rem', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                              title="Als gesendet markieren"
+                              onClick={() => handleAdvanceStep(lead)}
+                            >
+                              ✓
+                            </button>
+                          )}
+                          {(lead.nextAction !== 'Send Outreach' || lead.status === 'Closed') && (
+                            <button 
+                              className="btn-secondary" 
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.6rem', background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', border: '1px solid rgba(244, 63, 94, 0.3)' }}
+                              title="Einen Schritt zurück"
+                              onClick={() => handleStepBack(lead)}
+                            >
+                              ↩
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div className="flex gap-2 justify-end">
@@ -297,6 +409,15 @@ function App() {
                             onClick={() => handlePreview(lead)}
                         >
                             Email generieren
+                        </button>
+                        <button 
+                            className="btn-danger-icon"
+                            title="Lead löschen"
+                            onClick={() => handleDeleteLead(lead)}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
                         </button>
                       </div>
                     </td>

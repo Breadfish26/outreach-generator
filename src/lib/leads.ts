@@ -34,6 +34,45 @@ export const leadService = {
     }
   },
 
+  async updateLead(id: string, updates: Partial<Lead>): Promise<void> {
+    // Map our local Lead type back to database structure
+    // We only need the core fields for the update
+    const dbUpdates: any = {};
+    
+    if (updates.company !== undefined) dbUpdates.company_name = updates.company;
+    if (updates.name !== undefined) dbUpdates.contact_person = updates.name;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.website !== undefined) dbUpdates.website = updates.website;
+    if (updates.status !== undefined) {
+      dbUpdates.status = updates.status === 'Open' ? 'new' : 'ignored';
+    }
+
+    // Metadata updates
+    if (updates.nextAction || updates.lastSent || updates.anrede || updates.painPoint || updates.notes) {
+      dbUpdates.metadata = {
+        anrede: updates.anrede,
+        painPoint: updates.painPoint,
+        notes: updates.notes,
+        lastSent: updates.lastSent,
+        nextAction: updates.nextAction,
+        outreachSent: updates.outreachSent,
+        f1Sent: updates.f1Sent,
+        f2Sent: updates.f2Sent,
+        f3Sent: updates.f3Sent
+      };
+    }
+
+    const { error } = await supabase
+      .from('leads')
+      .update(dbUpdates)
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating lead:', error);
+      throw error;
+    }
+  },
+
   async saveSequence(leadId: string, emails: any): Promise<void> {
     const { error } = await supabase
       .from('outreach_sequences')
@@ -68,6 +107,18 @@ export const leadService = {
     }
 
     return data ? data.emails : null;
+  },
+
+  async deleteLead(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting lead:', error);
+      throw error;
+    }
   },
 
   mapLeadToDb(lead: Lead) {
