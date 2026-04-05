@@ -4,7 +4,7 @@ import { fetchSheetData, parseCSV } from './logic/sheetParser'
 import { generateEmailForLead } from './logic/sequenceGenerator'
 import { useLocalStorage } from './hooks'
 import { TemplateEditor } from './components/TemplateEditor'
-import { KiWerkstatt } from './components/KiWerkstatt'
+import KiWerkstatt from './components/KiWerkstatt'
 import { DEFAULT_TEMPLATES } from './logic/templates'
 import { ApiSettings } from './types'
 import { generateAiEmail } from './logic/aiGenerator'
@@ -25,6 +25,7 @@ function App() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [previewEmail, setPreviewEmail] = useState<GeneratedEmail | null>(null);
   const [copyStatus, setCopyStatus] = useState(false);
+  const [senderName, setSenderName] = useLocalStorage<string>('sender_name', 'Kerstin Grosche');
   
   const [activeTab, setActiveTab] = useState<'dashboard' | 'templates' | 'ki-werkstatt'>('dashboard');
   const [customTemplates, setCustomTemplates] = useLocalStorage<FullTemplates>('outreach_templates', DEFAULT_TEMPLATES);
@@ -145,7 +146,7 @@ function App() {
       </nav>
 
       {activeTab === 'dashboard' ? (
-        <section className="dashboard">
+        <section className="dashboard animate-fade-in">
           {/* ... existing dashboard code ... */}
           <div className="controls-bar">
             {/* Same controls as before */}
@@ -187,14 +188,13 @@ function App() {
               </button>
             </div>
   
-            <div style={{ display: 'flex', gap: 'var(--spacing-xs)' }}>
-               <button onClick={loadData} className={`btn-secondary ${loading ? 'loading' : ''}`} style={{ padding: '0.5rem 1rem' }}>
+            <div className="flex gap-2">
+               <button onClick={loadData} className={`btn-secondary ${loading ? 'loading' : ''}`}>
                   {loading ? 'Lade...' : 'Sync'}
                </button>
                <button 
                  onClick={() => document.getElementById('csv-upload')?.click()} 
-                 className="btn-secondary" 
-                 style={{ padding: '0.5rem 1rem' }}
+                 className="btn-secondary"
                >
                   Upload
                </button>
@@ -208,7 +208,7 @@ function App() {
                <button onClick={() => {
                  const newUrl = prompt("Google Sheets CSV URL:", sheetUrl);
                  if (newUrl) setSheetUrl(newUrl);
-               }} className="btn-secondary" style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.1)' }}>
+               }} className="btn-secondary">
                  Config
                </button>
             </div>
@@ -275,7 +275,11 @@ function App() {
         </section>
       ) : activeTab === 'ki-werkstatt' ? (
         <section className="ki-werkstatt">
-          <KiWerkstatt apiSettings={apiSettings} />
+          <KiWerkstatt 
+            apiSettings={apiSettings} 
+            senderName={senderName} 
+            onSenderNameChange={setSenderName}
+          />
         </section>
       ) : null}
 

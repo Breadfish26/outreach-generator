@@ -113,11 +113,11 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
   const previewBody = substituteVariables(currentTemplate.body, SAMPLE_LEAD);
 
   return (
-    <div className="template-editor-view">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-1rem' }}>
+    <div className="template-editor-view animate-fade-in">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
         <button 
           className="btn-secondary" 
-          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+          style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
           onClick={() => setShowSettings(!showSettings)}
         >
           {showSettings ? '✕ Einstellungen schließen' : '⚙️ API-Einstellungen'}
@@ -125,109 +125,135 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       </div>
 
       {showSettings && (
-        <div className="card glassy" style={{ border: '1px solid var(--primary)', marginBottom: '1rem' }}>
-           <h4 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>KI Einstellungen (Gemini 1.5 Flash)</h4>
-           <div className="input-field">
-             <label>Gemini API Key</label>
-             <input 
-               type="password" 
-               value={apiSettings.geminiKey}
-               onChange={(e) => onApiSettingsChange({ ...apiSettings, geminiKey: e.target.value })}
-               placeholder="AI Studio API Key eintragen..."
-             />
-           </div>
-           <div className="input-field">
-             <label>Nische / Fokus (für KI-Prompt)</label>
-             <input 
-               type="text" 
-               value={niche}
-               onChange={(e) => setNiche(e.target.value)}
-               placeholder="z.B. Poolbau / Handwerk, Software SaaS, Zahnärzte..."
-             />
+        <div className="card variant-glass mb-4" style={{ border: '1px solid var(--primary)' }}>
+           <h4 style={{ color: 'var(--primary)', marginBottom: '1.25rem', fontSize: '1.1rem', fontWeight: 800 }}>KI-Engine Konfiguration</h4>
+           <div className="grid grid-2">
+             <div className="form-group">
+               <label>Gemini API Key</label>
+               <input 
+                 type="password" 
+                 value={apiSettings.geminiKey}
+                 onChange={(e) => onApiSettingsChange({ ...apiSettings, geminiKey: e.target.value })}
+                 placeholder="AI Studio API Key eintragen..."
+               />
+             </div>
+             <div className="form-group">
+               <label>Nische / Fokus (für KI-Prompt)</label>
+               <input 
+                 type="text" 
+                 value={niche}
+                 onChange={(e) => setNiche(e.target.value)}
+                 placeholder="z.B. Poolbau / Handwerk, Software SaaS..."
+               />
+             </div>
            </div>
         </div>
       )}
 
-      <div className="editor-controls">
-        <div className="selection-group">
-          <label>Problemstellung (Pain Point)</label>
-          <select 
-            value={selectedPainPoint} 
-            onChange={(e) => setSelectedPainPoint(e.target.value)}
-            className="modern-select"
-          >
-            {PAIN_POINTS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        </div>
-        
-        <div className="selection-group">
-          <label>Email-Schritt</label>
-          <select 
-            value={selectedStep} 
-            onChange={(e) => setSelectedStep(e.target.value as EmailStep)}
-            className="modern-select"
-          >
-            {STEPS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
+      <div className="controls-bar">
+        <div className="grid grid-2 w-full" style={{ alignItems: 'flex-end', gap: 'var(--spacing-md)' }}>
+          <div className="form-group">
+            <label>Problemstellung (Pain Point)</label>
+            <select 
+              value={selectedPainPoint} 
+              onChange={(e) => setSelectedPainPoint(e.target.value)}
+              className="modern-select"
+            >
+              {PAIN_POINTS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+          
+          <div className="form-group">
+            <label>Email-Schritt</label>
+            <select 
+              value={selectedStep} 
+              onChange={(e) => setSelectedStep(e.target.value as EmailStep)}
+              className="modern-select"
+            >
+              {STEPS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </div>
         </div>
 
-        <button 
-          onClick={handleAiRefine} 
-          className="btn-secondary" 
-          style={{ 
-            color: 'var(--primary)', 
-            borderColor: 'var(--primary)',
-            background: 'rgba(56, 189, 248, 0.05)',
-            fontWeight: 800
-          }}
-          disabled={isGenerating}
-        >
-          {isGenerating ? '⌛ Generiere...' : '✨ Mit KI generieren'}
-        </button>
-
-        <div className="action-buttons-editor">
-          <button onClick={saveAll} className="btn-primary">Speichern</button>
-          <button onClick={resetCurrent} className="btn-secondary">Reset aktuell</button>
-          <button onClick={resetAll} className="btn-danger">Alles zurücksetzen</button>
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', width: '100%', justifyContent: 'flex-end' }}>
+          <button 
+            onClick={handleAiRefine} 
+            className="btn-secondary" 
+            style={{ 
+              color: 'var(--primary)', 
+              borderColor: 'var(--primary)',
+              background: 'rgba(56, 189, 248, 0.05)',
+              fontWeight: 800
+            }}
+            disabled={isGenerating}
+          >
+            {isGenerating ? '⌛ Generiere...' : '✨ Mit KI generieren'}
+          </button>
+          <button onClick={saveAll} className="btn-primary">Alle speichern</button>
         </div>
       </div>
 
-      <div className="editor-grid">
-        <div className="editor-panel card glassy">
-          <h4>Vorlage bearbeiten</h4>
-          <div className="placeholder-hint">
-            Verfügbar: <code>{'{anrede}'}</code>, <code>{'{name}'}</code>, <code>{'{company}'}</code>, <code>{'{website}'}</code>, <code>{'{sender_name}'}</code>
-          </div>
-          
-          <div className="input-field">
-            <label>Betreff</label>
-            <input 
-              type="text" 
-              value={currentTemplate.subject} 
-              onChange={(e) => handleUpdate('subject', e.target.value)}
-              placeholder="Betreff..."
-            />
-          </div>
+      <div className="editor-grid mt-4">
+        <div className="editor-panel">
+          <div className="card" style={{ height: '100%' }}>
+            <h4>Vorlage bearbeiten</h4>
+            <div className="placeholder-hint">
+              Verfügbar: <code>{'{anrede}'}</code>, <code>{'{name}'}</code>, <code>{'{company}'}</code>, <code>{'{website}'}</code>, <code>{'{sender_name}'}</code>
+            </div>
+            
+            <div className="form-group">
+              <label>Betreff</label>
+              <input 
+                type="text" 
+                value={currentTemplate.subject} 
+                onChange={(e) => handleUpdate('subject', e.target.value)}
+                placeholder="Betreff..."
+              />
+            </div>
 
-          <div className="input-field">
-            <label>Inhalt</label>
-            <textarea 
-              value={currentTemplate.body} 
-              onChange={(e) => handleUpdate('body', e.target.value)}
-              placeholder="E-Mail Inhalt..."
-              rows={15}
-            />
+            <div className="form-group">
+              <label>Inhalt</label>
+              <textarea 
+                value={currentTemplate.body} 
+                onChange={(e) => handleUpdate('body', e.target.value)}
+                placeholder="E-Mail Inhalt..."
+                rows={16}
+                style={{ fontSize: '0.9rem', lineHeight: '1.5' }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button 
+                onClick={resetCurrent} 
+                className="btn-secondary" 
+                style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}
+              >Aktuelle zurücksetzen</button>
+              <button 
+                onClick={resetAll} 
+                className="btn-danger" 
+                style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}
+              >Alle zurücksetzen</button>
+            </div>
           </div>
         </div>
 
-        <div className="preview-panel card glassy">
-          <h4>Live Vorschau (Beispiel-Daten)</h4>
-          <div className="email-preview-container">
-            <div className="preview-item">
-              <strong>Betreff:</strong> {previewSubject}
-            </div>
-            <div className="preview-item body-preview">
-              {previewBody.split('\n').map((line, i) => <div key={i}>{line || <br/>}</div>)}
+        <div className="preview-panel">
+          <div className="card" style={{ height: '100%' }}>
+            <h4>Live Vorschau (Simulation)</h4>
+            <div className="email-preview-container" style={{ minHeight: '500px' }}>
+              <div className="email-section">
+                <span className="section-label">Betreff</span>
+                <div className="section-content" style={{ fontWeight: 800, color: 'var(--primary)' }}>
+                  {previewSubject}
+                </div>
+              </div>
+              <hr style={{ margin: '1.5rem 0', border: 'none', borderTop: '1px solid var(--glass-border)' }} />
+              <div className="email-section">
+                <span className="section-label">Inhalt</span>
+                <div className="section-content" style={{ fontSize: '1rem' }}>
+                  {previewBody.split('\n').map((line, i) => <div key={i}>{line || <br/>}</div>)}
+                </div>
+              </div>
             </div>
           </div>
         </div>

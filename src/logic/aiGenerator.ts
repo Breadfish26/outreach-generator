@@ -3,35 +3,50 @@ import { AiPromptParams, EmailTemplate, EmailStep } from '../types';
 const API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 export async function generateFullSequenceAi(params: AiPromptParams, apiKey: string): Promise<Record<EmailStep, EmailTemplate>> {
-  const { painPoint, company, website, niche = "B2B / Handwerk", notes } = params;
+  const { painPoint, company, website, notes } = params;
 
   const prompt = `
-Du bist ein erstklassiger Copywriter für B2B-Kaltakquise im deutschsprachigen Raum. Dein Stil ist professionell, minimalistisch, ehrlich und niemals aufdringlich (Low-Pressure). 
+Du bist ein erstklassiger Copywriter für B2B-Kaltakquise. Dein Stil ist professionell, minimalistisch, ehrlich und niemals aufdringlich (Low-Pressure).
 
 AUFGABE:
-Erzeuge eine vollständige 4-teilige E-Mail-Sequenz basierend auf einem spezifischen Pain Point.
+Erzeuge eine vollständige 4-teilige E-Mail-Sequenz. Du MUSST dich exakt an den folgenden Aufbau halten:
 
-STRUKTUR-VORGABE (Beispiel "Fehlender Kalkulator" - DAS IST DEIN BLUEPRINT):
-1. Outreach: Erwähne eine konkrete Beobachtung ("Mir ist aufgefallen..."), erkläre kurz das resultierende Problem ("Consequence") und biete als Lösung eine "Skizze/Vorschau" an. Ende IMMER mit der Frage: "Soll ich Ihnen das kurz schicken?"
-2. Follow-up 1 (nach 3 Tagen): Kurz nachfragen, Wert der Skizze verdeutlichen.
-3. Follow-up 2 (nach 5 Tagen): Erneut auf die Skizze hinweisen, zeigen dass du den Ball nur kurz hochhalten willst.
-4. Follow-up 3 (Letzter Versuch): Den Faden freundlich schließen ("Wenn ich nichts höre, melde ich mich nicht weiter").
+ALLGEMEINE REGELN:
+- Betreff für Outreach: "Kurze Homepage-Idee für ${company}?"
+- Betreff für Follow-ups: "Kurze Rückfrage / ${company}"
+- Keine formalen Anreden wie "Sehr geehrte...". Nutze nur "Hallo {name}," (wenn Name bekannt) oder "Hallo," (wenn Name leer).
+- Keine "Haben Sie meine Mail bekommen?" Sätze.
+- Keine "MfG" oder "Mit freundlichen Grüßen". Nutze nur "Viele Grüße {sender_name}".
+- Nutze Platzhalter: {name}, {company}, {website}, {sender_name}.
+
+SEQUENZ-STRUKTUR (STRENG FOLGEN):
+1. Outreach: 
+   - Einstieg: "mir ist aufgefallen, dass auf der Seite {website} [PAIN POINT]."
+   - Consequence: Erkläre kurz (1-2 Sätze), warum das ein Problem ist (Verlust von Anfragen/Interesse).
+   - Skizze: "Wenn Sie möchten, erstelle ich eine kurze Skizze, wie eine Lösung auf der Seite aussehen könnte."
+   - Abschluss: "Soll ich Ihnen das kurz schicken?"
+   
+2. Follow-up 1 (nach 3 Tagen):
+   - "viele Besucher auf einer {company}-Website haben bereits konkretes Interesse. [PROBLEM ERKLÄREN]."
+   - "Wenn diese Orientierung in dem Moment fehlt, geht ein Teil dieses Interesses verloren."
+   - "Ich habe eine kurze Vorschau erstellt, die zeigt, wie man diesen Einstieg erleichtern kann."
+   - "Soll ich sie Ihnen kurz schicken?"
+
+3. Follow-up 2 (nach 5 Tagen):
+   - "Ich lasse es bei dieser letzten kurzen Nachfrage, da ich weiß, wie voll der Alltag ist."
+   - "Die Skizze zeigt, wie man potenziellen Kunden schneller eine Orientierung geben kann, ohne dass sie die Anfrage aufschieben."
+   - "Dauert etwa eine Minute zum Anschauen. Soll ich sie Ihnen kurz schicken?"
+
+4. Follow-up 3 (Abschluss):
+   - "Hallo, ich wollte den Faden hier nur kurz schließen."
+   - "Soll ich Ihnen das kleine Beispiel für {company} noch schicken?"
+   - "Viele Grüße {sender_name}"
 
 HEUTIGER FALL:
-- Nische: ${niche}
 - Unternehmen: ${company}
 - Website: ${website}
-- SPEZIFISCHER PAIN POINT: ${painPoint}
+- SPEZIFISCHER PAIN POINT (SETZE DIESEN OBEN EIN): ${painPoint}
 ${notes ? `- Zusatz-Infos: ${notes}` : ""}
-
-REGELN:
-- Sprache: Deutsch
-- Platzhalter nutzen: {anrede}, {company}, {website}, {sender_name}.
-- Du nutzt KEIN generisches Marketing-Blabla ("Marktführer", "Umsatz steigern", "KI-Revolution").
-- Sei maximal konkret auf den Pain Point bezogen.
-- Outreach-Mail: Max 3-4 kurze Absätze.
-- Follow-ups: Max 2 kurze Absätze.
-- Absender ist immer {sender_name}.
 
 ANTWORTE NUR ALS REINES JSON OBJEKT MIT DIESER STRUKTUR:
 {
@@ -61,8 +76,6 @@ ANTWORTE NUR ALS REINES JSON OBJEKT MIT DIESER STRUKTUR:
 
     const data = await response.json();
     let content = data.candidates[0].content.parts[0].text;
-    
-    // Clean JSON if the AI wrapped it in code blocks
     content = content.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(content);
   } catch (error) {
@@ -72,22 +85,23 @@ ANTWORTE NUR ALS REINES JSON OBJEKT MIT DIESER STRUKTUR:
 }
 
 export async function generateAiEmail(params: AiPromptParams, apiKey: string): Promise<EmailTemplate> {
-  const { painPoint, company, website, niche = "Poolbau / Handwerk", step, notes } = params;
+  const { painPoint, company, website, step, notes } = params;
 
   const prompt = `
-Du bist ein Experte für Cold Outreach und Copywriting im deutschen B2B-Bereich (Nische: ${niche}). 
-Dein Schreibstil ist professionell, minimalistisch, ehrlich und niemals aufdringlich (Low-Pressure). 
+Du bist ein Experte für Cold Outreach. Dein Stil ist minimalistisch.
+Erzeuge eine E-Mail für den Schritt: ${getStepName(step || 'outreach')}.
+
+REGELN:
+- Betreff: "Kurze Homepage-Idee für ${company}?"
+- Anrede: "Hallo {name}," oder "Hallo,".
+- Abschluss: "Viele Grüße {sender_name}".
+- Folge exakt der Struktur: Beobachtung [PAIN POINT] -> Konsequenz -> Angebot einer Skizze -> Abschluss-Frage "Soll ich Ihnen das kurz schicken?".
 
 DATEN:
 - Unternehmen: ${company}
 - Website: ${website}
 - Problem/Beobachtung: ${painPoint}
 ${notes ? `- Notizen: ${notes}` : ""}
-- E-Mail Schritt: ${getStepName(step || 'outreach')}
-
-STRUKTUR-VORGABEN:
-1. Outreach-Mail: Erwähne kurz die Beobachtung (Einstieg: "Mir ist aufgefallen..."), erkläre kurz die negative Konsequenz für das Business und biete als Lösung eine kostenlose "Skizze/Vorschau" an. Die Mail endet IMMER mit der Frage: "Soll ich Ihnen das kurz schicken?"
-2. Follow-ups: Beziehe dich auf die vorherige Idee (die "Skizze"). 
 
 ANTWORTE NUR IM FOLGENDEN JSON FORMAT:
 {
@@ -115,8 +129,6 @@ ANTWORTE NUR IM FOLGENDEN JSON FORMAT:
 
     const data = await response.json();
     let content = data.candidates[0].content.parts[0].text;
-
-    // Clean JSON if the AI wrapped it in code blocks
     content = content.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(content) as EmailTemplate;
   } catch (error) {

@@ -1,139 +1,216 @@
 import React, { useState } from 'react';
-import { ApiSettings, EmailStep, EmailTemplate } from '../types';
 import { generateFullSequenceAi } from '../logic/aiGenerator';
+import { EmailTemplate, EmailStep, ApiSettings } from '../types';
 import { substituteVariables } from '../logic/templates';
 
 interface KiWerkstattProps {
   apiSettings: ApiSettings;
+  senderName: string;
+  onSenderNameChange: (name: string) => void;
 }
 
-const SAMPLE_LEAD = {
-  anrede: 'Hallo,' as any,
-  name: 'Kontaktperson',
-  company: 'Musterfirma GmbH',
-  website: 'musterfirma.de',
-  sender_name: 'Ihr Name'
-};
-
-export const KiWerkstatt: React.FC<KiWerkstattProps> = ({ apiSettings }) => {
-  const [niche, setNiche] = useState('Anwaltskanzlei');
+const KiWerkstatt: React.FC<KiWerkstattProps> = ({ apiSettings, senderName, onSenderNameChange }) => {
+  const [painPoint, setPainPoint] = useState('');
   const [company, setCompany] = useState('');
   const [website, setWebsite] = useState('');
-  const [painPoint, setPainPoint] = useState('');
+  const [contactName, setContactName] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [sequence, setSequence] = useState<Record<EmailStep, EmailTemplate> | null>(null);
+  const [generatedSequence, setGeneratedSequence] = useState<Record<EmailStep, EmailTemplate> | null>(null);
 
   const handleGenerate = async () => {
-    if (!apiSettings.geminiKey) {
-      alert("Bitte tragen Sie zuerst Ihren Gemini API-Key in den Textbausteine-Einstellungen ein.");
+    if (!painPoint || !company || !website) {
+      alert("Bitte füllen Sie Pain Point, Firmennamen und Website aus.");
       return;
     }
-    if (!painPoint || !company) {
-      alert("Bitte geben Sie mindestens die Firma und den Pain Point an.");
+
+    if (!apiSettings.geminiKey) {
+      alert("Bitte hinterlegen Sie zuerst einen Gemini API Key in den Einstellungen.");
       return;
     }
 
     setIsGenerating(true);
     try {
-      const result = await generateFullSequenceAi({
+      const sequence = await generateFullSequenceAi({
         painPoint,
         company,
         website,
-        niche
+        contactName,
       }, apiSettings.geminiKey);
-      setSequence(result);
-    } catch (err) {
-      alert("Generierung fehlgeschlagen: " + (err instanceof Error ? err.message : "Unbekannter Fehler"));
+      
+      setGeneratedSequence(sequence);
+    } catch (error: any) {
+      alert("Generierung fehlgeschlagen: " + error.message);
     } finally {
       setIsGenerating(false);
     }
   };
 
   const copyToClipboard = (template: EmailTemplate) => {
-    const data = { ...SAMPLE_LEAD, company: company || SAMPLE_LEAD.company, website: website || SAMPLE_LEAD.website };
-    const subject = substituteVariables(template.subject, data);
-    const body = substituteVariables(template.body, data);
+    // Data for substitution
+    const data = { 
+      name: contactName,
+      contact_name: contactName,
+      company: company,
+      website: website,
+      sender_name: senderName
+    };
+    
+    const subject = substituteVariables(template.subject, data as any);
+    const body = substituteVariables(template.body, data as any);
+    
     navigator.clipboard.writeText(`Betreff: ${subject}\n\n${body}`);
     alert("Email kopiert!");
   };
 
   return (
-    <div className="ki-werkstatt-view animation-fadeIn">
-      <div className="card glassy" style={{ marginBottom: 'var(--spacing-lg)' }}>
-        <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>✨ Individuelle KI-Sequenz erstellen</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-          Beschreiben Sie hier ein spezifisches Problem. Die KI erstellt daraus eine vollständige 4-Schritt-Sequenz 
-          basierend auf Ihrer bewährten Outreach-Struktur.
+    <div className="card animate-fade-in">
+      <div className="card-header">
+        <h2>🪄 Individuelle KI-Werkstatt</h2>
+      </div>
+      <div className="card-body">
+        <p className="text-secondary mb-4">
+          Geben Sie die Basis-Informationen ein. Die KI erstellt daraus eine psychologisch optimierte 4-Schritt-Sequenz basierend auf Ihrem Case.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-          <div className="input-field">
-            <label>Nische / Branche</label>
-            <input value={niche} onChange={e => setNiche(e.target.value)} placeholder="z.B. Anwaltskanzlei" />
+        <div className="grid grid-2">
+          <div className="form-group">
+            <label htmlFor="contact-name">Ansprechpartner Name (Optional)</label>
+            <input 
+              id="contact-name"
+              type="text" 
+              placeholder="z.B. Herr Müller oder Kerstin" 
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+            />
           </div>
-          <div className="input-field">
-            <label>Firmenname</label>
-            <input value={company} onChange={e => setCompany(e.target.value)} placeholder="z.B. Kanzlei Schmidt" />
+          <div className="form-group">
+            <label htmlFor="company-name">Firmenname</label>
+            <input 
+              id="company-name"
+              type="text" 
+              placeholder="Muster GmbH" 
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+            />
           </div>
         </div>
 
-        <div className="input-field">
-          <label>Website</label>
-          <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="www.beispiel.de" />
+        <div className="grid grid-2">
+          <div className="form-group">
+            <label htmlFor="website">Website</label>
+            <input 
+              id="website"
+              type="url" 
+              placeholder="www.muster.de" 
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="sender-name">Dein Absender Name</label>
+            <input 
+              id="sender-name"
+              type="text" 
+              placeholder="z.B. Kerstin Grosche" 
+              value={senderName}
+              onChange={(e) => onSenderNameChange(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="input-field">
-          <label>Spezifischer Pain Point (Was ist Ihnen aufgefallen?)</label>
+        <div className="form-group">
+          <label htmlFor="pain-point">Spezifischer Pain Point (Was ist Ihnen aufgefallen?)</label>
           <textarea 
-            value={painPoint} 
-            onChange={e => setPainPoint(e.target.value)} 
-            placeholder="z.B. Die Website lädt seit 2 Tagen gar nicht mehr / Das Impressum ist fehlerhaft..."
-            rows={3}
-          />
+            id="pain-point"
+            placeholder="z.B. Das Impressum lädt nicht, oder: Der 'Team'-Link auf der Startseite führt zu einer 404 Fehlerseite."
+            rows={4}
+            value={painPoint}
+            onChange={(e) => setPainPoint(e.target.value)}
+          ></textarea>
         </div>
 
         <button 
-          onClick={handleGenerate} 
-          className="btn-primary" 
-          style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
+          className="btn-primary w-full mt-4" 
+          onClick={handleGenerate}
           disabled={isGenerating}
+          style={{ padding: '1rem', fontSize: '1.1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
         >
-          {isGenerating ? '⌛ Erzeuge Sequenz...' : '🚀 Vollständige Sequenz generieren'}
+          {isGenerating ? (
+            <>
+              <span className="spinner"></span>
+              Erzeuge Sequenz...
+            </>
+          ) : '🚀 Vollständige Sequenz generieren'}
         </button>
-      </div>
 
-      {sequence && (
-        <div className="sequence-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-          {(['outreach', 'followup1', 'followup2', 'followup3'] as EmailStep[]).map((step, idx) => (
-             <div key={step} className="card glassy" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <h4 style={{ color: 'var(--primary)', margin: 0 }}>
-                    {idx === 0 ? 'Outreach' : `Follow-up #${idx}`}
-                  </h4>
-                  <button 
-                    onClick={() => copyToClipboard(sequence[step])}
-                    className="btn-secondary" 
-                    style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}
-                  >📋 Kopieren</button>
+        {generatedSequence && (
+          <div className="mt-4 animate-fade-in" style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>Generierte E-Mails</h3>
+              <button 
+                className="btn-secondary"
+                onClick={() => {
+                  const fullText = (['outreach', 'followup1', 'followup2', 'followup3'] as EmailStep[])
+                    .map((step, idx) => {
+                      const t = generatedSequence[step];
+                      const s = substituteVariables(t.subject, { company, website } as any);
+                      const b = substituteVariables(t.body, { name: contactName, company, website, sender_name: senderName } as any);
+                      return `--- EMAIL ${idx + 1} (${step}) ---\nBetreff: ${s}\n\n${b}`;
+                    }).join('\n\n');
+                  navigator.clipboard.writeText(fullText);
+                  alert("Vollständige Sequenz kopiert!");
+                }}
+              >
+                Ganze Sequenz kopieren
+              </button>
+            </div>
+            
+            <div className="grid grid-2" style={{ gap: '1.5rem' }}>
+              {(['outreach', 'followup1', 'followup2', 'followup3'] as EmailStep[]).map((step, idx) => (
+                <div key={step} className="variant-glass" style={{ borderRadius: '16px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="badge badge-primary">
+                      {idx === 0 ? 'Step 1: Outreach' : `Step ${idx + 1}: Follow-up`}
+                    </span>
+                    <button 
+                      className="btn-secondary"
+                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                      onClick={() => copyToClipboard(generatedSequence[step])}
+                    >
+                      Kopieren
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    <strong style={{ color: 'var(--primary)', fontWeight: 800 }}>Betreff:</strong> {substituteVariables(generatedSequence[step].subject, { company, website } as any)}
+                  </div>
+                  <div 
+                    style={{ 
+                      fontSize: '0.9rem', 
+                      lineHeight: '1.5',
+                      whiteSpace: 'pre-wrap',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      padding: '1rem',
+                      background: 'rgba(0,0,0,0.3)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255,255,255,0.05)'
+                    }}
+                  >
+                    {substituteVariables(generatedSequence[step].body, { 
+                      name: contactName, 
+                      company, 
+                      website, 
+                      sender_name: senderName 
+                    } as any)}
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-                   {substituteVariables(sequence[step].subject, { ...SAMPLE_LEAD, company, website })}
-                </div>
-                <div style={{ 
-                  fontSize: '0.8rem', 
-                  color: 'var(--text-muted)', 
-                  whiteSpace: 'pre-wrap', 
-                  flexGrow: 1,
-                  background: 'rgba(0,0,0,0.1)',
-                  padding: '1rem',
-                  borderRadius: '8px'
-                }}>
-                   {substituteVariables(sequence[step].body, { ...SAMPLE_LEAD, company, website })}
-                </div>
-             </div>
-          ))}
-        </div>
-      )}
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
+export default KiWerkstatt;

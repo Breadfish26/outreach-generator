@@ -89,7 +89,8 @@ export interface AiPromptParams {
   painPoint: string;
   company: string;
   website: string;
-  niche?: string;
+  contactName?: string;
   step?: EmailStep;
   notes?: string;
+  niche?: string;
 }
