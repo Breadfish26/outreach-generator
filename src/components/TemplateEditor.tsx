@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FullTemplates, PainPoint, EmailStep, EmailTemplate, ApiSettings } from '../types';
+import { FullTemplates, EmailStep, EmailTemplate } from '../types';
 import { DEFAULT_TEMPLATES, substituteVariables } from '../logic/templates';
-import { generateAiEmail } from '../logic/aiGenerator';
 
 interface TemplateEditorProps {
   templates: FullTemplates;
   onSave: (templates: FullTemplates) => void;
-  apiSettings: ApiSettings;
-  onApiSettingsChange: (settings: ApiSettings) => void;
 }
 
 const SAMPLE_LEAD = {
@@ -22,8 +19,7 @@ const PAIN_POINTS: { id: string; label: string }[] = [
   { id: 'missing_pool_calculator', label: 'Fehlender Kalkulator' },
   { id: 'missing_contact_option', label: 'Einstieg fehlt' },
   { id: 'broken_link', label: 'Defekter Link' },
-  { id: 'no_homepage_cta', label: 'Home-CTA fehlt' },
-  { id: 'custom', label: 'Eigenes Thema' }
+  { id: 'no_homepage_cta', label: 'Home-CTA fehlt' }
 ];
 
 const STEPS: { id: EmailStep; label: string }[] = [
@@ -35,15 +31,10 @@ const STEPS: { id: EmailStep; label: string }[] = [
 
 export const TemplateEditor: React.FC<TemplateEditorProps> = ({ 
   templates, 
-  onSave, 
-  apiSettings, 
-  onApiSettingsChange 
+  onSave 
 }) => {
   const [selectedPainPoint, setSelectedPainPoint] = useState<string>(PAIN_POINTS[0].id);
   const [selectedStep, setSelectedStep] = useState<EmailStep>('outreach');
-  const [showSettings, setShowSettings] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [niche, setNiche] = useState('Poolbau / Handwerk');
   
   const [currentTemplates, setCurrentTemplates] = useState<FullTemplates>(templates);
   
@@ -61,32 +52,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
       [field]: value
     };
     setCurrentTemplates(updated);
-  };
-
-  const handleAiRefine = async () => {
-    if (!apiSettings.geminiKey) {
-      alert("Bitte tragen Sie zuerst Ihren Gemini API-Key in den Einstellungen ein.");
-      setShowSettings(true);
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const template = await generateAiEmail({
-        painPoint: PAIN_POINTS.find(p => p.id === selectedPainPoint)?.label || selectedPainPoint,
-        company: SAMPLE_LEAD.company,
-        website: SAMPLE_LEAD.website,
-        niche: niche,
-        step: selectedStep
-      }, apiSettings.geminiKey);
-
-      handleUpdate('subject', template.subject);
-      handleUpdate('body', template.body);
-    } catch (err) {
-      alert("Fehler bei der KI-Generierung: " + (err instanceof Error ? err.message : "Unbekannter Fehler"));
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   const saveAll = () => {
@@ -114,42 +79,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
 
   return (
     <div className="template-editor-view animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-        <button 
-          className="btn-secondary" 
-          style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
-          onClick={() => setShowSettings(!showSettings)}
-        >
-          {showSettings ? '✕ Einstellungen schließen' : '⚙️ API-Einstellungen'}
-        </button>
-      </div>
-
-      {showSettings && (
-        <div className="card variant-glass mb-4" style={{ border: '1px solid var(--primary)' }}>
-           <h4 style={{ color: 'var(--primary)', marginBottom: '1.25rem', fontSize: '1.1rem', fontWeight: 800 }}>KI-Engine Konfiguration</h4>
-           <div className="grid grid-2">
-             <div className="form-group">
-               <label>Gemini API Key</label>
-               <input 
-                 type="password" 
-                 value={apiSettings.geminiKey}
-                 onChange={(e) => onApiSettingsChange({ ...apiSettings, geminiKey: e.target.value })}
-                 placeholder="AI Studio API Key eintragen..."
-               />
-             </div>
-             <div className="form-group">
-               <label>Nische / Fokus (für KI-Prompt)</label>
-               <input 
-                 type="text" 
-                 value={niche}
-                 onChange={(e) => setNiche(e.target.value)}
-                 placeholder="z.B. Poolbau / Handwerk, Software SaaS..."
-               />
-             </div>
-           </div>
-        </div>
-      )}
-
       <div className="controls-bar">
         <div className="grid grid-2 w-full" style={{ alignItems: 'flex-end', gap: 'var(--spacing-md)' }}>
           <div className="form-group">
@@ -176,19 +105,6 @@ export const TemplateEditor: React.FC<TemplateEditorProps> = ({
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', width: '100%', justifyContent: 'flex-end' }}>
-          <button 
-            onClick={handleAiRefine} 
-            className="btn-secondary" 
-            style={{ 
-              color: 'var(--primary)', 
-              borderColor: 'var(--primary)',
-              background: 'rgba(56, 189, 248, 0.05)',
-              fontWeight: 800
-            }}
-            disabled={isGenerating}
-          >
-            {isGenerating ? '⌛ Generiere...' : '✨ Mit KI generieren'}
-          </button>
           <button onClick={saveAll} className="btn-primary">Alle speichern</button>
         </div>
       </div>

@@ -269,8 +269,6 @@ function App() {
           <TemplateEditor 
             templates={customTemplates} 
             onSave={(updated) => setCustomTemplates(updated)} 
-            apiSettings={apiSettings}
-            onApiSettingsChange={setApiSettings}
           />
         </section>
       ) : activeTab === 'ki-werkstatt' ? (
