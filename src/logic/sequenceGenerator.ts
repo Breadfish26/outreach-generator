@@ -1,83 +1,34 @@
-import { Lead, GeneratedEmail, IssueType, NextAction, FormState, EmailSequence, EmailModule } from '../types';
-import { ISSUE_MODULES, getGreetingForLead, substituteVariables } from './templates';
+import { Lead, GeneratedEmail, IssueType, NextAction, FormState, EmailSequence, EmailModule, FullTemplates, EmailStep } from '../types';
+import { ISSUE_MODULES, getGreetingForLead, substituteVariables, DEFAULT_TEMPLATES } from './templates';
 
 const SENDER_NAME = "Kerstin Grosche";
 
-export const generateEmailForLead = (lead: Lead): GeneratedEmail | null => {
+export const generateEmailForLead = (lead: Lead, customTemplates?: FullTemplates): GeneratedEmail | null => {
   if (lead.status === 'Closed' || lead.response === 'YES' || lead.nextAction === 'Closed') {
     return null;
   }
 
   const action = lead.nextAction;
-  const greeting = getGreetingForLead(lead);
-  const module = ISSUE_MODULES[lead.painPoint] || ISSUE_MODULES.custom;
+  const templates = customTemplates || DEFAULT_TEMPLATES;
   
-  let subject = "";
-  let bodyParts: string[] = [greeting, ""];
+  // Map NextAction to EmailStep
+  let step: EmailStep = 'outreach';
+  if (action === 'Send Follow-up #1') step = 'followup1';
+  if (action === 'Send Follow-up #2') step = 'followup2';
+  if (action === 'Send Follow-up #3') step = 'followup3';
 
-  switch (action) {
-    case 'Send Outreach':
-      subject = `Kosten-Schätzung auf [website]`;
-      bodyParts.push(
-        substituteVariables(module.observation, lead),
-        "",
-        substituteVariables(module.consequence, lead),
-        "",
-        substituteVariables(module.previewLine, lead),
-        "",
-        "Soll ich Ihnen das kurz schicken?",
-        "",
-        SENDER_NAME
-      );
-      break;
+  // Get template for pain point and step
+  const painPoint = lead.painPoint in templates ? lead.painPoint : 'custom';
+  const template = templates[painPoint][step];
 
-    case 'Send Follow-up #1':
-      subject = `Re: Kosten-Schätzung auf [website]`;
-      bodyParts.push(
-        "ich wollte kurz nachfragen, ob meine Nachricht bei Ihnen angekommen ist.",
-        "",
-        `Viele Besucher auf einer Pool-Website haben bereits konkretes Interesse. ${substituteVariables(module.consequence, lead)}`,
-        "",
-        substituteVariables(module.previewLine, lead),
-        "",
-        "Soll ich Ihnen das kurz schicken?",
-        "",
-        SENDER_NAME
-      );
-      break;
-
-    case 'Send Follow-up #2':
-      subject = `Kurze Rückfrage zu [company]`;
-      bodyParts.push(
-        "ich wollte mich kurz noch einmal melden.",
-        "",
-        `Haben Sie meine Skizze zur Optimierung von [website] bereits erhalten? ${substituteVariables(module.previewLine, lead)}`,
-        "",
-        "Soll ich Ihnen das kurz schicken?",
-        "",
-        SENDER_NAME
-      );
-      break;
-
-    case 'Send Follow-up #3':
-      subject = `Letzter Versuch / [company]`;
-      bodyParts.push(
-        "ich wollte den Faden hier nur kurz schließen.",
-        "",
-        `Soll ich Ihnen das kleine Beispiel für [company] noch schicken?`,
-        "",
-        "Viele Grüße",
-        SENDER_NAME
-      );
-      break;
-
-    default:
-      return null;
-  }
+  const data = {
+    ...lead,
+    sender_name: SENDER_NAME // Predefined for now, could be dynamic
+  };
 
   return {
-    subject: substituteVariables(subject, lead),
-    body: bodyParts.map(p => substituteVariables(p, lead)).join('\n'),
+    subject: substituteVariables(template.subject, data),
+    body: substituteVariables(template.body, data),
     type: action
   };
 };

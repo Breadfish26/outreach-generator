@@ -1,4 +1,4 @@
-import { FormState, Lead, IssueType, EmailModule, AnredeType } from '../types';
+import { FormState, Lead, IssueType, EmailModule, AnredeType, EmailTemplate, EmailStep, FullTemplates } from '../types';
 
 export const ISSUE_MODULES: Record<string, EmailModule> = {
   missing_pool_calculator: {
@@ -78,26 +78,127 @@ export const getGreetingManual = (step: 'outreach' | 'f1' | 'f3', state: FormSta
   return "Hallo,";
 };
 
-export const substituteVariables = (text: string, data: Lead | FormState): string => {
+export const substituteVariables = (text: string, data: Partial<Lead & FormState>): string => {
   let result = text;
   
-  if ("website" in data) {
-    result = result.replace(/\[website\]/g, data.website);
-  }
+  // Support both [placeholder] and {placeholder}
+  const replace = (key: string, value: string) => {
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(`\\[${escapedKey}\\]`, 'g'), value);
+    result = result.replace(new RegExp(`\\{${escapedKey}\\}`, 'g'), value);
+  };
+
+  if ("website" in data && data.website) replace("website", data.website);
   
-  if ("company" in data) {
-    result = result.replace(/\[company\]/g, data.company);
-  } else if ("company_name" in data) {
-    result = result.replace(/\[company\]/g, data.company_name);
-  }
+  const company = data.company || data.company_name;
+  if (company) replace("company", company);
   
-  if ("notes" in data) {
-    result = result.replace(/\[notes\]/g, data.notes);
-  }
+  if ("notes" in data && data.notes) replace("notes", data.notes);
+  if ("custom_issue_text" in data && data.custom_issue_text) replace("custom_issue_text", data.custom_issue_text);
+  if ("sender_name" in data && data.sender_name) replace("sender_name", data.sender_name);
+  if ("name" in data && data.name) replace("name", data.name);
+  if ("contact_name" in data && data.contact_name) replace("name", data.contact_name);
   
-  if ("custom_issue_text" in data) {
-    result = result.replace(/\[custom_issue_text\]/g, data.custom_issue_text);
+  // Custom logic for greeting
+  if (result.includes("{anrede}")) {
+    const greeting = "anrede" in data ? getGreetingForLead(data as Lead) : "Hallo,";
+    // If it's a lead, getGreetingForLead already returns "Hallo Herr X"
+    // So we replace {anrede} with the whole greeting if it's there
+    result = result.replace(/\{anrede\}/g, greeting);
   }
 
   return result;
+};
+
+export const DEFAULT_TEMPLATES: FullTemplates = {
+  missing_pool_calculator: {
+    outreach: {
+      subject: "Kosten-Schätzung auf {website}",
+      body: "{anrede}\n\nmir ist aufgefallen, dass es auf der Seite {website} keine Möglichkeit gibt, eine grobe Poolkosten-Schätzung zu bekommen.\n\nViele, die beginnen einen Pool zu planen, möchten zuerst ein Gefühl dafür bekommen, in welchem Preisbereich sich das Projekt bewegt. Wenn diese Orientierung fehlt, verschieben viele die Anfrage erst einmal.\n\nWenn Sie möchten, erstelle ich eine kurze Skizze, wie eine einfache Poolkosten-Schätzung auf der Seite aussehen könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup1: {
+      subject: "Re: Kosten-Schätzung auf {website}",
+      body: "{anrede}\n\nich wollte kurz nachfragen, ob meine Nachricht bei Ihnen angekommen ist.\n\nViele Besucher auf einer Pool-Website haben bereits konkretes Interesse. Wenn die Preisorientierung fehlt, gehen diese Anfragen oft verloren.\n\nIch habe eine Skizze erstellt, wie man diese Orientierung direkt auf der Seite einbinden könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup2: {
+      subject: "Kurze Rückfrage zu {company}",
+      body: "{anrede}\n\nich wollte mich kurz noch einmal melden.\n\nHaben Sie meine Skizze zur Optimierung von {website} bereits erhalten?\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup3: {
+      subject: "Letzter Versuch / {company}",
+      body: "{anrede}\n\nich wollte den Faden hier nur kurz schließen.\n\nSoll ich Ihnen das kleine Beispiel für {company} noch schicken?\n\nAnsonsten melde ich mich nicht weiter.\n\nViele Grüße\n{sender_name}"
+    }
+  },
+  missing_contact_option: {
+    outreach: {
+      subject: "Kontakt-Optimierung auf {website}",
+      body: "{anrede}\n\nmir ist aufgefallen, dass auf {website} keine direkte, sichtbare Kontaktmöglichkeit auf der Startseite vorhanden ist.\n\nGerade Besucher mit akutem Interesse möchten oft genau in diesem Moment schnell eine Frage stellen. Wenn diese Möglichkeit nicht sofort sichtbar ist, geht ein Teil dieser Anfragen verloren.\n\nIch habe eine Skizze erstellt, wie man diesen Einstieg sichtbarer machen könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup1: {
+      subject: "Re: Kontakt-Optimierung auf {website}",
+      body: "{anrede}\n\nich wollte kurz nachfragen, ob meine Nachricht bei Ihnen angekommen ist.\n\nIch habe eine kurze Skizze erstellt, wie man den Kontakt-Einstieg auf der Seite sichtbarer machen könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup2: {
+      subject: "Kurze Rückfrage zu {company}",
+      body: "{anrede}\n\nich wollte mich kurz noch einmal melden.\n\nHaben Sie meine Skizze zur Optimierung von {website} bereits erhalten?\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup3: {
+      subject: "Letzter Versuch / {company}",
+      body: "{anrede}\n\nich wollte den Faden hier nur kurz schließen.\n\nSoll ich Ihnen das kleine Beispiel für {company} noch schicken?\n\nViele Grüße\n{sender_name}"
+    }
+  },
+  broken_link: {
+    outreach: {
+      subject: "Hinweis zu einem Link auf {website}",
+      body: "{anrede}\n\nmir ist aufgefallen, dass ein wichtiger Link auf {website} aktuell nicht sauber weiterführt.\n\nGerade wenn Besucher an dieser Stelle klicken, ist das Interesse oft schon sehr konkret. Wenn der nächste Schritt dort unterbrochen wird, gehen potenzielle Anfragen verloren.\n\nIch habe eine Skizze erstellt, wie dieser Schritt sauber weitergeführt werden könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup1: {
+      subject: "Re: Hinweis zu einem Link auf {website}",
+      body: "{anrede}\n\nich wollte kurz nachfragen, ob meine Nachricht bei Ihnen angekommen ist.\n\nIch habe eine kurze Skizze erstellt, wie dieser Schritt auf der Seite sauber weitergeführt werden könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup2: {
+      subject: "Kurze Rückfrage zu {company}",
+      body: "{anrede}\n\nich wollte mich kurz noch einmal melden.\n\nHaben Sie meine Skizze für {website} bereits erhalten?\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup3: {
+      subject: "Letzter Versuch / {company}",
+      body: "{anrede}\n\nich wollte den Faden hier nur kurz schließen.\n\nSoll ich Ihnen das kleine Beispiel für {company} noch schicken?\n\nViele Grüße\n{sender_name}"
+    }
+  },
+  no_homepage_cta: {
+    outreach: {
+      subject: "Beratungs-Einstieg auf {website}",
+      body: "{anrede}\n\nmir ist aufgefallen, dass es auf der Homepage aktuell keinen klaren „Nächsten Schritt“ gibt, der den Besucher direkt zur Beratung führt.\n\nOhne klare Handlungsaufforderung schauen sich Besucher zwar um, verlassen die Seite aber oft wieder, ohne den Kontakt zu suchen.\n\nIch habe eine Skizze erstellt, wie so ein strategischer CTA bei Ihnen wirken könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup1: {
+      subject: "Re: Beratungs-Einstieg auf {website}",
+      body: "{anrede}\n\nich wollte kurz nachfragen, ob meine Nachricht bei Ihnen angekommen ist.\n\nIch habe eine Skizze erstellt, wie so ein strategischer CTA bei Ihnen wirken könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup2: {
+      subject: "Kurze Rückfrage zu {company}",
+      body: "{anrede}\n\nich wollte mich kurz noch einmal melden.\n\nHaben Sie meine Skizze für {website} bereits erhalten?\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup3: {
+      subject: "Letzter Versuch / {company}",
+      body: "{anrede}\n\nich wollte den Faden hier nur kurz schließen.\n\nSoll ich Ihnen das kleine Beispiel für {company} noch schicken?\n\nViele Grüße\n{sender_name}"
+    }
+  },
+  custom: {
+    outreach: {
+      subject: "Frage zu {website}",
+      body: "{anrede}\n\nmir ist aufgefallen, dass {notes}.\n\nGerade an diesem Punkt entscheiden sich viele Besucher, ob sie tiefer in die Planung einsteigen oder die Seite wieder verlassen.\n\nIch habe eine kurze Skizze erstellt, wie man diesen Punkt für Ihre Besucher optimieren könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup1: {
+      subject: "Re: Frage zu {website}",
+      body: "{anrede}\n\nich wollte kurz nachfragen, ob meine Nachricht bei Ihnen angekommen ist.\n\nIch habe eine kurze Skizze erstellt, wie man diesen Punkt für Ihre Besucher optimieren könnte.\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup2: {
+      subject: "Kurze Rückfrage zu {company}",
+      body: "{anrede}\n\nich wollte mich kurz noch einmal melden.\n\nHaben Sie meine Skizze für {website} bereits erhalten?\n\nSoll ich Ihnen das kurz schicken?\n\nViele Grüße\n{sender_name}"
+    },
+    followup3: {
+      subject: "Letzter Versuch / {company}",
+      body: "{anrede}\n\nich wollte den Faden hier nur kurz schließen.\n\nSoll ich Ihnen das kleine Beispiel für {company} noch schicken?\n\nViele Grüße\n{sender_name}"
+    }
+  }
 };

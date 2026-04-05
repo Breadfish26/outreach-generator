@@ -1,6 +1,6 @@
 export type Anrede = 'Herr' | 'Frau' | 'Familie' | '';
 
-export type IssueType = 
+export type PainPoint = 
   | 'missing_pool_calculator'
   | 'calculator_email_only'
   | 'external_redirect'
@@ -8,7 +8,9 @@ export type IssueType =
   | 'broken_link'
   | 'no_homepage_cta'
   | 'custom'
-  | 'custom_issue'; // Supporting both versions
+  | 'custom_issue';
+
+export type IssueType = PainPoint;
 
 export type NextAction = 
   | 'Send Outreach'
@@ -16,6 +18,15 @@ export type NextAction =
   | 'Send Follow-up #2'
   | 'Send Follow-up #3'
   | 'Closed';
+
+export type EmailStep = 'outreach' | 'followup1' | 'followup2' | 'followup3';
+
+export interface EmailTemplate {
+  subject: string;
+  body: string;
+}
+
+export type FullTemplates = Record<string, Record<EmailStep, EmailTemplate>>;
 
 export interface Lead {
   anrede: Anrede;

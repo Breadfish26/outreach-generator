@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Lead, GeneratedEmail, NextAction } from './types'
+import { Lead, GeneratedEmail, NextAction, FullTemplates } from './types'
 import { fetchSheetData, parseCSV } from './logic/sheetParser'
 import { generateEmailForLead } from './logic/sequenceGenerator'
 import { useLocalStorage } from './hooks'
+import { TemplateEditor } from './components/TemplateEditor'
+import { DEFAULT_TEMPLATES } from './logic/templates'
 
 const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv";
 
@@ -20,6 +22,9 @@ function App() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [previewEmail, setPreviewEmail] = useState<GeneratedEmail | null>(null);
   const [copyStatus, setCopyStatus] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'templates'>('dashboard');
+  const [customTemplates, setCustomTemplates] = useLocalStorage<FullTemplates>('outreach_templates', DEFAULT_TEMPLATES);
 
   // Today Due logic
   const isDueToday = (lead: Lead): boolean => {
@@ -84,7 +89,7 @@ function App() {
   }, [leads, searchTerm, statusFilter]);
 
   const handlePreview = (lead: Lead) => {
-    const email = generateEmailForLead(lead);
+    const email = generateEmailForLead(lead, customTemplates);
     setSelectedLead(lead);
     setPreviewEmail(email);
   };
@@ -104,123 +109,149 @@ function App() {
         <p>Live-Lead-Datenbank & Email-Sequenzer &bull; Kerstin Grosche</p>
       </header>
 
-      <section className="dashboard">
-        <div className="controls-bar">
-          <div className="search-wrapper">
-             <span className="search-icon">🔍</span>
-             <input 
-               type="text" 
-               placeholder="Suche nach Firma, Name, Website oder E-Mail" 
-               className="search-input"
-               value={searchTerm}
-               onChange={(e) => setSearchTerm(e.target.value)}
-             />
-          </div>
-          
-          <div className="filters-group">
-            <button 
-              className={`filter-btn ${statusFilter === 'Today' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('Today')}
-            >
-              Heute fällig
-            </button>
-            <button 
-              className={`filter-btn ${statusFilter === 'Open' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('Open')}
-            >
-              Offen
-            </button>
-            <button 
-              className={`filter-btn ${statusFilter === 'Closed' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('Closed')}
-            >
-              Abgeschlossen
-            </button>
-            <button 
-              className={`filter-btn ${statusFilter === 'All' ? 'active' : ''}`}
-              onClick={() => setStatusFilter('All')}
-            >
-              Alle
-            </button>
-          </div>
+      <nav className="main-nav">
+        <button 
+          className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setActiveTab('dashboard')}
+        >
+          Dashboard
+        </button>
+        <button 
+          className={`nav-item ${activeTab === 'templates' ? 'active' : ''}`}
+          onClick={() => setActiveTab('templates')}
+        >
+          Textbausteine
+        </button>
+      </nav>
 
-          <div style={{ display: 'flex', gap: 'var(--spacing-xs)' }}>
-             <button onClick={loadData} className={`btn-secondary ${loading ? 'loading' : ''}`} style={{ padding: '0.5rem 1rem' }}>
-                {loading ? 'Lade...' : 'Sync'}
-             </button>
-             <button 
-               onClick={() => document.getElementById('csv-upload')?.click()} 
-               className="btn-secondary" 
-               style={{ padding: '0.5rem 1rem' }}
-             >
-                Upload
-             </button>
-             <input 
-               id="csv-upload"
-               type="file" 
-               accept=".csv" 
-               onChange={handleFileUpload} 
-               style={{ display: 'none' }} 
-             />
-             <button onClick={() => {
-               const newUrl = prompt("Google Sheets CSV URL:", sheetUrl);
-               if (newUrl) setSheetUrl(newUrl);
-             }} className="btn-secondary" style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.1)' }}>
-               Config
-             </button>
+      {activeTab === 'dashboard' ? (
+        <section className="dashboard">
+          {/* ... existing dashboard code ... */}
+          <div className="controls-bar">
+            {/* Same controls as before */}
+            <div className="search-wrapper">
+               <span className="search-icon">🔍</span>
+               <input 
+                 type="text" 
+                 placeholder="Suche nach Firma, Name, Website oder E-Mail" 
+                 className="search-input"
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+               />
+            </div>
+            
+            <div className="filters-group">
+              <button 
+                className={`filter-btn ${statusFilter === 'Today' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('Today')}
+              >
+                Heute fällig
+              </button>
+              <button 
+                className={`filter-btn ${statusFilter === 'Open' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('Open')}
+              >
+                Offen
+              </button>
+              <button 
+                className={`filter-btn ${statusFilter === 'Closed' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('Closed')}
+              >
+                Abgeschlossen
+              </button>
+              <button 
+                className={`filter-btn ${statusFilter === 'All' ? 'active' : ''}`}
+                onClick={() => setStatusFilter('All')}
+              >
+                Alle
+              </button>
+            </div>
+  
+            <div style={{ display: 'flex', gap: 'var(--spacing-xs)' }}>
+               <button onClick={loadData} className={`btn-secondary ${loading ? 'loading' : ''}`} style={{ padding: '0.5rem 1rem' }}>
+                  {loading ? 'Lade...' : 'Sync'}
+               </button>
+               <button 
+                 onClick={() => document.getElementById('csv-upload')?.click()} 
+                 className="btn-secondary" 
+                 style={{ padding: '0.5rem 1rem' }}
+               >
+                  Upload
+               </button>
+               <input 
+                 id="csv-upload"
+                 type="file" 
+                 accept=".csv" 
+                 onChange={handleFileUpload} 
+                 style={{ display: 'none' }} 
+               />
+               <button onClick={() => {
+                 const newUrl = prompt("Google Sheets CSV URL:", sheetUrl);
+                 if (newUrl) setSheetUrl(newUrl);
+               }} className="btn-secondary" style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.1)' }}>
+                 Config
+               </button>
+            </div>
           </div>
-        </div>
-
-        {error && <div style={{ color: '#ef4444', marginBottom: '1rem', fontWeight: 600 }}>{error}</div>}
-
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Firma / Website</th>
-                <th>Kontakt</th>
-                <th>Nächster Schritt</th>
-                <th style={{ textAlign: 'right' }}>Aktion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLeads.map((lead, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <div className="company-cell">{lead.company}</div>
-                    <a href={`https://${lead.website}`} target="_blank" className="website-link">{lead.website}</a>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{lead.name}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.email}</div>
-                  </td>
-                  <td>
-                    <span className={`action-badge ${lead.nextAction.toLowerCase().includes('outreach') ? 'outreach' : 'followup'} ${lead.status === 'Closed' ? 'closed' : ''}`}>
-                       {lead.nextAction}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button 
-                      className="btn-primary"
-                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                      onClick={() => handlePreview(lead)}
-                    >
-                      Email generieren
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredLeads.length === 0 && !loading && (
+  
+          {error && <div style={{ color: '#ef4444', marginBottom: '1rem', fontWeight: 600 }}>{error}</div>}
+  
+          <div className="table-container">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    Keine Leads gefunden.
-                  </td>
+                  <th>Firma / Website</th>
+                  <th>Kontakt</th>
+                  <th>Nächster Schritt</th>
+                  <th style={{ textAlign: 'right' }}>Aktion</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {filteredLeads.map((lead, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <div className="company-cell">{lead.company}</div>
+                      <a href={`https://${lead.website}`} target="_blank" className="website-link">{lead.website}</a>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{lead.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{lead.email}</div>
+                    </td>
+                    <td>
+                      <span className={`action-badge ${lead.nextAction.toLowerCase().includes('outreach') ? 'outreach' : 'followup'} ${lead.status === 'Closed' ? 'closed' : ''}`}>
+                         {lead.nextAction}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button 
+                        className="btn-primary"
+                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                        onClick={() => handlePreview(lead)}
+                      >
+                        Email generieren
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredLeads.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                      Keine Leads gefunden.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <section className="templates">
+          <TemplateEditor 
+            templates={customTemplates} 
+            onSave={(updated) => setCustomTemplates(updated)} 
+          />
+        </section>
+      )}
 
       {/* Preview Modal */}
       {selectedLead && previewEmail && (
