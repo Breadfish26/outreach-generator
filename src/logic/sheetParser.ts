@@ -7,30 +7,40 @@ export const fetchSheetData = async (url: string): Promise<Lead[]> => {
 };
 
 export const parseCSV = (csv: string): Lead[] => {
-  const lines = csv.split(/\r?\n/);
-  // Header: Anrede,Name,Company,Website,Email,Pain Point,Last Sent,Outreach #1 Sent,Follow-up #1 (Day 3),Follow-up #2 (Day 5),Follow-up #3 (Day 7),Response?,Response Date,Status,Next Action,Notes
+  const lines = csv.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length <= 1) return [];
+
+  // Detect delimiter (comma or semicolon)
+  const firstLine = lines[0];
+  const delimiter = firstLine.includes(';') && !firstLine.includes(',') ? ';' : ',';
+
   // We skip the header line
-  return lines.slice(1).filter(line => line.trim().length > 0).map(line => {
-    // Basic CSV split (handles quotes if needed, but simple split for now)
-    const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).map(line => {
+    // Better split that handles quotes and delimiters
+    const regex = new RegExp(`("${delimiter}"|[^${delimiter}])+`, 'g');
+    const cols = (line.match(regex) || []).map(c => c.trim().replace(/^"|"$/g, ''));
     
+    // Fallback if regex is too complex
+    const simpleCols = line.split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
+    const finalCols = cols.length >= simpleCols.length ? cols : simpleCols;
+
     return {
-      anrede: cols[0] as any,
-      name: cols[1],
-      company: cols[2],
-      website: cols[3],
-      email: cols[4],
-      painPoint: mapPainPoint(cols[5]),
-      lastSent: cols[6],
-      outreachSent: cols[7],
-      f1Sent: cols[8],
-      f2Sent: cols[9],
-      f3Sent: cols[10],
-      response: cols[11] as any,
-      responseDate: cols[12],
-      status: cols[13] as any,
-      nextAction: (cols[14] || 'Closed') as NextAction,
-      notes: cols[15] || ''
+      anrede: (finalCols[0] || '') as any,
+      name: finalCols[1] || '',
+      company: finalCols[2] || '',
+      website: finalCols[3] || '',
+      email: finalCols[4] || '',
+      painPoint: mapPainPoint(finalCols[5] || ''),
+      lastSent: finalCols[6] || '',
+      outreachSent: finalCols[7] || '',
+      f1Sent: finalCols[8] || '',
+      f2Sent: finalCols[9] || '',
+      f3Sent: finalCols[10] || '',
+      response: (finalCols[11] || 'NO') as any,
+      responseDate: finalCols[12] || '',
+      status: (finalCols[13] || 'Open') as any,
+      nextAction: (finalCols[14] || 'Send Outreach') as NextAction,
+      notes: finalCols[15] || ''
     };
   });
 };

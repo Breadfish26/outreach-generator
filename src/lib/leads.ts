@@ -17,16 +17,19 @@ export const leadService = {
   },
 
   async upsertLeads(leads: Lead[]): Promise<void> {
-    const dbLeads = leads.map(this.mapLeadToDb);
+    // Filter out rows that are missing critical data like Company Name
+    const validLeads = leads.filter(l => l.company && l.company.trim() !== '');
     
-    // We use company_name + email as a unique constraint if we had one, 
-    // but for now we just insert or update by ID if present
+    if (validLeads.length === 0) return;
+
+    const dbLeads = validLeads.map(this.mapLeadToDb);
+    
     const { error } = await supabase
       .from('leads')
       .upsert(dbLeads, { onConflict: 'company_name, email' });
 
     if (error) {
-      console.error('Error upserting leads:', error);
+      console.error('SUPABASE ERROR in upsertLeads:', error.message, error.details, error.hint);
       throw error;
     }
   },
@@ -68,21 +71,28 @@ export const leadService = {
   },
 
   mapLeadToDb(lead: Lead) {
-    return {
-      id: lead.id,
+    const dbLead: any = {
       company_name: lead.company,
-      contact_person: lead.name,
-      email: lead.email,
-      website: lead.website,
+      contact_person: lead.name || '',
+      email: lead.email || null,
+      website: lead.website || '',
       status: lead.status === 'Open' ? 'new' : 'ignored',
       metadata: {
         anrede: lead.anrede,
         painPoint: lead.painPoint,
-        notes: lead.notes,
-        lastSent: lead.lastSent,
-        nextAction: lead.nextAction
+        notes: lead.notes || '',
+        lastSent: lead.lastSent || '',
+        nextAction: lead.nextAction || 'Send Outreach'
       }
     };
+
+    // Only include ID if it exists (for updates)
+    // If it doesn't exist, Supabase will generate a gen_random_uuid()
+    if (lead.id) {
+      dbLead.id = lead.id;
+    }
+
+    return dbLead;
   },
 
   mapDbToLead(dbLead: any): Lead {
