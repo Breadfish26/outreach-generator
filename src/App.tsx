@@ -10,6 +10,8 @@ import { substituteVariables } from './logic/templates'
 import { ApiSettings } from './types'
 import { generateAiEmail } from './logic/aiGenerator'
 import { leadService } from './lib/leads'
+import { PipelineView } from './components/PipelineView'
+import { PipelineDetailModal } from './components/PipelineDetailModal'
 
 const DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv";
 
@@ -29,7 +31,8 @@ function App() {
   const [copyStatus, setCopyStatus] = useState(false);
   const [senderName, setSenderName] = useLocalStorage<string>('sender_name', 'Kerstin Grosche');
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'templates' | 'ki-werkstatt'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'templates' | 'ki-werkstatt' | 'pipeline'>('pipeline');
+  const [detailLead, setDetailLead] = useState<Lead | null>(null);
   const [savedSequence, setSavedSequence] = useState<any | null>(null);
   const [showSequenceModal, setShowSequenceModal] = useState(false);
   const [customTemplates, setCustomTemplates] = useLocalStorage<FullTemplates>('outreach_templates', DEFAULT_TEMPLATES);
@@ -233,11 +236,20 @@ function App() {
   };
 
   const handleCopy = async () => {
-    if (!previewEmail) return;
+    if (!previewEmail || !selectedLead) return;
     const textToCopy = `Betreff: ${previewEmail.subject}\n\n${previewEmail.body}`;
     await navigator.clipboard.writeText(textToCopy);
+    
+    // Automatically advance the step if it's a "standard" generate action
+    if (selectedLead.id) {
+        await handleAdvanceStep(selectedLead);
+    }
+    
     setCopyStatus(true);
-    setTimeout(() => setCopyStatus(false), 2000);
+    setTimeout(() => {
+        setCopyStatus(false);
+        setSelectedLead(null);
+    }, 1500);
   };
 
   return (
@@ -249,16 +261,22 @@ function App() {
 
       <nav className="main-nav">
         <button 
+          className={`nav-item ${activeTab === 'pipeline' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pipeline')}
+        >
+          📈 Pipeline
+        </button>
+        <button 
           className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveTab('dashboard')}
         >
-          Dashboard
+          Lead-Liste
         </button>
         <button 
           className={`nav-item ${activeTab === 'templates' ? 'active' : ''}`}
           onClick={() => setActiveTab('templates')}
         >
-          Textbausteine
+          Vorlagen
         </button>
         <button 
           className={`nav-item ${activeTab === 'ki-werkstatt' ? 'active' : ''}`}
@@ -268,7 +286,20 @@ function App() {
         </button>
       </nav>
 
-      {activeTab === 'dashboard' ? (
+      {activeTab === 'pipeline' ? (
+        <section className="pipeline-container animate-fade-in">
+           <PipelineView 
+             leads={leads} 
+             onUpdateLead={async (id: string, data: Partial<Lead>) => {
+               await leadService.updateLead(id, data);
+               await loadData();
+             }}
+             onSelectLead={(lead: Lead) => {
+               setDetailLead(lead);
+             }}
+           />
+        </section>
+      ) : activeTab === 'dashboard' ? (
         <section className="dashboard animate-fade-in">
           {/* ... existing dashboard code ... */}
           <div className="controls-bar">
@@ -452,6 +483,24 @@ function App() {
       ) : null}
 
       {/* Preview Modal */}
+      {detailLead && (
+         <PipelineDetailModal 
+           lead={detailLead}
+           onUpdate={async (id: string, data: Partial<Lead>) => {
+             await leadService.updateLead(id, data);
+             await loadData();
+             const updatedLeads = await leadService.getAllLeads();
+             const updated = updatedLeads.find((l: Lead) => l.id === id);
+             if (updated) setDetailLead(updated);
+           }}
+           onGenerateEmail={(lead) => {
+             handlePreview(lead);
+             setDetailLead(null);
+           }}
+           onClose={() => setDetailLead(null)}
+         />
+      )}
+
       {selectedLead && previewEmail && !showSequenceModal && (
         <div className="modal-overlay" onClick={() => setSelectedLead(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -474,7 +523,9 @@ function App() {
                </div>
             </div>
             <div className="modal-footer">
-               <button onClick={handleCopy} className={`btn-primary ${copyStatus ? 'btn-copied' : ''}`}>{copyStatus ? 'Kopiert!' : 'Kopieren & Schließen'}</button>
+               <button onClick={handleCopy} className={`btn-primary ${copyStatus ? 'btn-copied' : ''}`}>
+                 {copyStatus ? 'Verarbeitet!' : 'Kopieren & Als gesendet markieren'}
+               </button>
                <button onClick={() => setSelectedLead(null)} className="btn-secondary">Abbrechen</button>
             </div>
           </div>

@@ -35,32 +35,42 @@ export const leadService = {
   },
 
   async updateLead(id: string, updates: Partial<Lead>): Promise<void> {
-    // Map our local Lead type back to database structure
-    // We only need the core fields for the update
+    // 1. Get current lead to preserve existing metadata
+    const { data: currentLead, error: fetchError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
     const dbUpdates: any = {};
-    
     if (updates.company !== undefined) dbUpdates.company_name = updates.company;
     if (updates.name !== undefined) dbUpdates.contact_person = updates.name;
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.website !== undefined) dbUpdates.website = updates.website;
+    
     if (updates.status !== undefined) {
-      dbUpdates.status = updates.status === 'Open' ? 'new' : 'ignored';
+      dbUpdates.status = updates.status === 'Open' ? 'new' : 
+                         updates.status === 'Closed' ? 'ignored' : 'generated';
     }
 
-    // Metadata updates
-    if (updates.nextAction || updates.lastSent || updates.anrede || updates.painPoint || updates.notes) {
-      dbUpdates.metadata = {
-        anrede: updates.anrede,
-        painPoint: updates.painPoint,
-        notes: updates.notes,
-        lastSent: updates.lastSent,
-        nextAction: updates.nextAction,
-        outreachSent: updates.outreachSent,
-        f1Sent: updates.f1Sent,
-        f2Sent: updates.f2Sent,
-        f3Sent: updates.f3Sent
-      };
-    }
+    // Merge metadata
+    const existingMetadata = currentLead.metadata || {};
+    dbUpdates.metadata = {
+      ...existingMetadata,
+      ...(updates.anrede !== undefined ? { anrede: updates.anrede } : {}),
+      ...(updates.painPoint !== undefined ? { painPoint: updates.painPoint } : {}),
+      ...(updates.notes !== undefined ? { notes: updates.notes } : {}),
+      ...(updates.lastSent !== undefined ? { lastSent: updates.lastSent } : {}),
+      ...(updates.nextAction !== undefined ? { nextAction: updates.nextAction } : {}),
+      ...(updates.outreachSent !== undefined ? { outreachSent: updates.outreachSent } : {}),
+      ...(updates.f1Sent !== undefined ? { f1Sent: updates.f1Sent } : {}),
+      ...(updates.f2Sent !== undefined ? { f2Sent: updates.f2Sent } : {}),
+      ...(updates.f3Sent !== undefined ? { f3Sent: updates.f3Sent } : {}),
+      ...(updates.response !== undefined ? { response: updates.response } : {}),
+      ...(updates.responseDate !== undefined ? { responseDate: updates.responseDate } : {})
+    };
 
     const { error } = await supabase
       .from('leads')
