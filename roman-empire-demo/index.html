@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Roman Empire Expansion — 27 BC to 117 AD</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0a05;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Crimson Text', serif;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.2rem, 3vw, 2rem);
+      font-weight: 900;
+      color: #e8c97a;
+      text-align: center;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 30px rgba(232,201,122,0.4);
+    }
+
+    .subtitle {
+      font-family: 'Crimson Text', serif;
+      font-style: italic;
+      color: #a08050;
+      font-size: 1rem;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.05em;
+    }
+
+    .map-wrapper {
+      position: relative;
+      width: 90vw;
+      max-width: 1100px;
+    }
+
+    svg#map {
+      width: 100%;
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 0 40px rgba(180,120,40,0.2));
+    }
+
+    /* Sea */
+    .sea { fill: #1a2e40; }
+
+    /* Base land (ancient world geography) */
+    .land { fill: #2e2416; stroke: #1a1208; stroke-width: 0.3; }
+
+    /* Roman territory layers - each era */
+    .roman-territory {
+      fill: #b5462a;
+      stroke: #e8c97a;
+      stroke-width: 0.5;
+      opacity: 0;
+      transition: opacity 1.8s ease;
+      filter: url(#glow);
+    }
+    .roman-territory.visible { opacity: 1; }
+
+    /* City dots */
+    .city-dot {
+      fill: #e8c97a;
+      stroke: #fff8e0;
+      stroke-width: 0.6;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      r: 2.5;
+    }
+    .city-dot.visible { opacity: 1; }
+    .city-dot.capital { r: 4.5; fill: #fff; stroke: #e8c97a; stroke-width: 1; }
+
+    /* City labels */
+    .city-label {
+      font-family: 'Cinzel', serif;
+      font-size: 6px;
+      fill: #e8c97a;
+      opacity: 0;
+      transition: opacity 0.5s ease 0.3s;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+    .city-label.visible { opacity: 1; }
+
+    /* Era label */
+    #era-display {
+      font-family: 'Cinzel', serif;
+      font-size: 15px;
+      fill: #e8c97a;
+      font-weight: 900;
+      text-shadow: 0 0 10px gold;
+    }
+
+    #era-subtitle {
+      font-family: 'Crimson Text', serif;
+      font-size: 9px;
+      fill: #c8a050;
+      font-style: italic;
+    }
+
+    /* Timeline bar */
+    .timeline-wrapper {
+      width: 90vw;
+      max-width: 1100px;
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .timeline-track {
+      flex: 1;
+      height: 6px;
+      background: #2a1f0f;
+      border-radius: 3px;
+      border: 1px solid #4a3520;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #timeline-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6b2a0f, #e8c97a);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+      box-shadow: 0 0 10px rgba(232,201,122,0.5);
+    }
+
+    .timeline-label {
+      font-family: 'Cinzel', serif;
+      font-size: 0.75rem;
+      color: #a08050;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 0.8rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-family: 'Crimson Text', serif;
+      font-size: 0.85rem;
+      color: #a08050;
+    }
+    .legend-swatch {
+      width: 14px; height: 14px; border-radius: 3px;
+      border: 1px solid rgba(232,201,122,0.4);
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    button {
+      font-family: 'Cinzel', serif;
+      font-size: 0.8rem;
+      padding: 0.5rem 1.5rem;
+      background: transparent;
+      border: 1px solid #e8c97a;
+      color: #e8c97a;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: background 0.2s, color 0.2s;
+    }
+    button:hover { background: #e8c97a; color: #0d0a05; }
+
+    /* Animated particles over empire */
+    @keyframes particle-float {
+      0%   { transform: translateY(0) translateX(0); opacity: 0; }
+      20%  { opacity: 0.6; }
+      80%  { opacity: 0.3; }
+      100% { transform: translateY(-8px) translateX(4px); opacity: 0; }
+    }
+    .dust-particle {
+      animation: particle-float 3s ease-in-out infinite;
+    }
+
+    /* Eagle watermark */
+    #watermark {
+      opacity: 0.04;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<h1>The Rise of Rome</h1>
+<p class="subtitle">Territorial Expansion · 27 BC – 117 AD</p>
+
+<div class="map-wrapper">
+<svg id="map" viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="land-shadow">
+      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <radialGradient id="empire-grad" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#c8502e"/>
+      <stop offset="100%" stop-color="#8b2a12"/>
+    </radialGradient>
+    <linearGradient id="sea-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f2030"/>
+      <stop offset="100%" stop-color="#1e3a4a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- SEA BACKGROUND (Mediterranean world) -->
+  <rect width="500" height="320" fill="url(#sea-grad)"/>
+
+  <!-- LAND MASSES (simplified Europe, North Africa, Middle East) -->
+  <!-- Europe -->
+  <path class="land" d="
+    M 50,0 L 500,0 L 500,150 L 430,145 L 410,130 L 395,120 
+    L 380,115 L 370,105 L 355,100 L 340,90 L 330,85 L 320,95 
+    L 310,100 L 300,105 L 290,110 L 280,115 L 275,125 L 265,130 
+    L 250,128 L 235,125 L 220,130 L 210,140 L 200,145 L 185,148 
+    L 175,145 L 165,135 L 155,125 L 145,115 L 135,108 L 125,100 
+    L 110,95 L 95,90 L 80,88 L 65,85 L 50,80 L 40,75 L 30,65 
+    L 20,55 L 15,40 L 10,20 L 10,0 Z
+  "/>
+  <!-- Iberian Peninsula bump -->
+  <path class="land" d="M 30,100 L 50,80 L 65,85 L 80,88 L 95,90 L 110,95 L 105,115 L 95,130 L 80,140 L 65,145 L 50,138 L 35,125 L 25,112 Z"/>
+  <!-- Britain -->
+  <path class="land" d="M 100,10 L 120,5 L 140,8 L 155,18 L 150,30 L 140,38 L 125,40 L 110,35 L 100,25 Z"/>
+  <!-- Scandinavia hint -->
+  <path class="land" d="M 250,0 L 300,0 L 310,15 L 300,25 L 280,28 L 265,20 L 255,10 Z"/>
+
+  <!-- North Africa (below Mediterranean) -->
+  <path class="land" d="
+    M 0,220 L 500,220 L 500,320 L 0,320 Z
+  "/>
+  <!-- Egypt / Levant detail -->
+  <path class="land" d="M 350,185 L 380,180 L 400,175 L 415,170 L 430,168 L 445,170 L 460,175 L 470,185 L 475,200 L 465,210 L 450,215 L 430,218 L 410,215 L 390,210 L 375,205 L 360,200 Z"/>
+  <!-- Asia Minor / Anatolia -->
+  <path class="land" d="
+    M 320,140 L 360,130 L 395,125 L 420,128 L 440,135 L 455,145 L 460,158 L 450,168 L 435,172 L 415,170 L 395,165 L 375,160 L 355,158 L 335,160 L 318,165 L 308,158 L 310,148 Z
+  "/>
+  <!-- Greece / Balkans peninsula -->
+  <path class="land" d="M 270,140 L 290,135 L 305,138 L 310,148 L 308,158 L 298,165 L 285,168 L 272,165 L 265,155 L 263,145 Z"/>
+  <!-- Sicily -->
+  <path class="land" d="M 215,185 L 230,180 L 245,182 L 248,192 L 240,198 L 225,198 L 213,192 Z"/>
+  <!-- Sardinia -->
+  <path class="land" d="M 160,148 L 170,145 L 175,152 L 172,162 L 163,163 L 157,156 Z"/>
+  <!-- Corsica -->
+  <path class="land" d="M 155,132 L 162,130 L 167,135 L 165,143 L 158,145 L 153,139 Z"/>
+  <!-- Crete -->
+  <path class="land" d="M 278,210 L 300,207 L 320,208 L 325,215 L 315,220 L 295,220 L 278,218 Z"/>
+  <!-- Cyprus -->
+  <path class="land" d="M 370,185 L 385,182 L 392,187 L 387,193 L 373,193 Z"/>
+
+  <!-- NORTH AFRICA coast strip -->
+  <path class="land" d="M 0,200 L 60,195 L 100,192 L 140,190 L 180,192 L 210,198 L 235,205 L 260,208 L 280,210 L 270,220 L 0,220 Z"/>
+  
+  <!-- === ROMAN TERRITORIES by ERA === -->
+  <!-- Each path is added in historical order. Earlier eras = smaller. -->
+
+  <!-- ERA 1: 27 BC — Core Republic inheritance: Italy, Sicily, Sardinia, Corsica, Iberia, Macedonia, North Africa (Carthage coast), Gallia Narbonensis, Asia Minor west coast -->
+  <path id="era1" class="roman-territory" fill="url(#empire-grad)" d="
+    M 125,90 L 145,85 L 165,82 L 180,80 L 200,78 L 210,80
+    L 215,90 L 218,100 L 215,112 L 205,120
+    L 195,128 L 185,135 L 175,140 L 163,142 L 155,140
+    L 148,135 L 143,128 L 140,120 L 138,112
+    L 132,105 L 128,98 Z
+    M 150,145 L 170,143 L 178,150 L 175,162 L 162,165 L 153,158 Z
+    M 153,130 L 160,128 L 166,133 L 163,143 L 155,144 L 150,138 Z
+    M 210,182 L 228,178 L 245,180 L 248,190 L 237,197 L 218,196 L 210,190 Z
+  "/>
+
+  <!-- ERA 2: 9 BC — Add full Iberia, Gallia, Alpine regions -->
+  <path id="era2" class="roman-territory" fill="url(#empire-grad)" d="
+    M 30,100 L 50,78 L 65,83 L 80,86 L 95,88 L 110,92 L 125,90
+    L 128,98 L 132,105 L 138,112 L 140,120 L 143,128 L 148,135
+    L 155,140 L 163,142 L 175,140 L 185,135 L 195,128
+    L 205,120 L 215,112 L 218,100 L 215,90 L 210,80
+    L 215,70 L 225,60 L 235,52 L 248,48 L 255,50
+    L 260,58 L 258,68 L 250,76 L 240,82 L 228,86 L 218,88
+    L 210,80
+    L 105,112 L 95,128 L 80,138 L 65,143 L 50,136 L 36,123 L 28,110 Z
+  "/>
+
+  <!-- ERA 3: 14 AD — Add Pannonia, Messenia, complete Balkans down to Danube, Egypt, Levant, Syria -->
+  <path id="era3" class="roman-territory" fill="url(#empire-grad)" d="
+    M 215,88 L 228,86 L 240,82 L 250,76 L 258,68 L 263,62
+    L 270,58 L 280,55 L 293,52 L 305,52 L 315,56
+    L 322,64 L 325,74 L 322,86 L 315,95 L 305,100 L 295,105
+    L 285,110 L 278,118 L 272,128 L 268,138 L 265,148 L 263,155
+    L 270,162 L 278,165 L 288,162 L 298,158 L 305,148 L 308,138
+    L 310,128 L 318,118 L 330,112 L 345,108 L 358,108
+    L 370,110 L 382,115 L 393,122 L 400,132 L 398,142
+    L 390,152 L 378,158 L 365,162 L 350,162 L 340,158
+    L 330,152 L 322,145 L 318,138 L 315,128
+    L 310,120 L 308,112 
+    L 385,178 L 400,172 L 415,168 L 430,165 L 445,168
+    L 458,175 L 465,188 L 458,202 L 445,212 L 428,216
+    L 408,215 L 390,210 L 375,203 L 360,198 L 348,192
+    L 348,182 L 355,175 L 368,172 L 382,173
+    L 60,195 L 100,190 L 140,188 L 180,190 L 210,196 L 232,202
+    L 235,210 L 225,218 L 195,218 L 155,218 L 100,218 L 50,218 L 0,218 L 0,202 Z
+  "/>
+
+  <!-- ERA 4: 68 AD — Claudius adds Britannia, Mauritania, Thrace -->
+  <path id="era4" class="roman-territory" fill="url(#empire-grad)" d="
+    M 100,10 L 122,5 L 142,8 L 156,19 L 150,31 L 138,40
+    L 122,42 L 107,37 L 100,24 Z
+    M 258,68 L 263,62 L 268,55 L 278,45 L 290,38 L 302,38
+    L 315,43 L 322,52 L 322,64 L 315,56 L 305,52 L 293,52
+    L 280,55 L 270,58 Z
+    M 0,195 L 30,192 L 55,190 L 70,188 L 80,188 L 80,200 L 0,202 Z
+  "/>
+
+  <!-- ERA 5: 117 AD — Trajan's peak: Dacia, Arabia, Mesopotamia, Armenia -->
+  <path id="era5" class="roman-territory" fill="url(#empire-grad)" d="
+    M 315,56 L 330,48 L 345,44 L 358,44 L 368,50 L 372,60
+    L 368,70 L 358,75 L 345,76 L 332,74 L 322,68 L 318,60 Z
+    M 398,142 L 405,132 L 415,125 L 428,122 L 440,125
+    L 452,132 L 458,142 L 460,155 L 455,165 L 445,170
+    L 430,168 L 415,165 L 405,158 L 400,148 Z
+    M 448,170 L 462,165 L 475,162 L 488,165 L 496,175
+    L 495,190 L 485,200 L 470,205 L 455,200 L 448,188 Z
+    M 240,82 L 248,78 L 258,74 L 268,72 L 278,74
+    L 272,82 L 260,86 L 248,86 Z
+  "/>
+
+  <!-- CITY DOTS & LABELS -->
+  <!-- Rome -->
+  <circle class="city-dot capital" id="city-rome" cx="195" cy="148" data-era="1"/>
+  <text class="city-label" id="label-rome" x="195" y="142" data-era="1">ROMA</text>
+
+  <!-- Carthago -->
+  <circle class="city-dot" id="city-carthago" cx="188" cy="210" data-era="3"/>
+  <text class="city-label" id="label-carthago" x="188" y="206" data-era="3">Carthago</text>
+
+  <!-- Londinium -->
+  <circle class="city-dot" id="city-londinium" cx="118" cy="26" data-era="4"/>
+  <text class="city-label" id="label-londinium" x="128" y="23" data-era="4">Londinium</text>
+
+  <!-- Hispalis -->
+  <circle class="city-dot" id="city-hispalis" cx="62" cy="120" data-era="2"/>
+  <text class="city-label" id="label-hispalis" x="75" y="118" data-era="2">Hispalis</text>
+
+  <!-- Lutetia -->
+  <circle class="city-dot" id="city-lutetia" cx="158" cy="75" data-era="2"/>
+  <text class="city-label" id="label-lutetia" x="168" y="73" data-era="2">Lutetia</text>
+
+  <!-- Alexandria -->
+  <circle class="city-dot" id="city-alexandria" cx="360" cy="198" data-era="3"/>
+  <text class="city-label" id="label-alexandria" x="360" y="193" data-era="3">Alexandria</text>
+
+  <!-- Antioch -->
+  <circle class="city-dot" id="city-antioch" cx="420" cy="175" data-era="3"/>
+  <text class="city-label" id="label-antioch" x="430" y="173" data-era="3">Antiochia</text>
+
+  <!-- Byzantium -->
+  <circle class="city-dot" id="city-byzantium" cx="312" cy="132" data-era="3"/>
+  <text class="city-label" id="label-byzantium" x="312" y="127" data-era="3">Byzantium</text>
+
+  <!-- Ctesiphon (Trajan) -->
+  <circle class="city-dot" id="city-ctesiphon" cx="472" cy="185" data-era="5"/>
+  <text class="city-label" id="label-ctesiphon" x="464" y="180" data-era="5">Ctesiphon</text>
+
+  <!-- Dacia -->
+  <circle class="city-dot" id="city-dacia" cx="305" cy="60" data-era="5"/>
+  <text class="city-label" id="label-dacia" x="305" y="55" data-era="5">Dacia</text>
+
+  <!-- ERA OVERLAY TEXT (top-right of map) -->
+  <g id="era-info">
+    <rect x="340" y="8" width="150" height="42" rx="4" fill="rgba(0,0,0,0.6)" stroke="#4a3520" stroke-width="0.5"/>
+    <text id="era-display" x="415" y="25" text-anchor="middle">27 BC</text>
+    <text id="era-subtitle" x="415" y="38" text-anchor="middle">Augustus — The First Principate</text>
+  </g>
+
+  <!-- MEDITERRANEAN LABEL -->
+  <text x="205" y="175" text-anchor="middle" font-family="'Crimson Text',serif" font-style="italic" font-size="8" fill="rgba(180,200,220,0.5)" letter-spacing="0.1em">MARE NOSTRUM</text>
+
+  <!-- Compass rose -->
+  <g transform="translate(28, 260)">
+    <circle r="12" fill="rgba(0,0,0,0.5)" stroke="#4a3520" stroke-width="0.5"/>
+    <polygon points="0,-10 2,-2 0,-4 -2,-2" fill="#e8c97a"/>
+    <polygon points="0,10 2,2 0,4 -2,2" fill="#6a5020"/>
+    <polygon points="-10,0 -2,-2 -4,0 -2,2" fill="#6a5020"/>
+    <polygon points="10,0 2,-2 4,0 2,2" fill="#6a5020"/>
+    <text y="-12" text-anchor="middle" font-family="Cinzel" font-size="5" fill="#e8c97a">N</text>
+  </g>
+
+  <!-- Scale bar -->
+  <g transform="translate(30, 295)">
+    <line x1="0" y1="0" x2="50" y2="0" stroke="#a08050" stroke-width="0.8"/>
+    <line x1="0" y1="-3" x2="0" y2="3" stroke="#a08050" stroke-width="0.8"/>
+    <line x1="50" y1="-3" x2="50" y2="3" stroke="#a08050" stroke-width="0.8"/>
+    <text x="25" y="-5" text-anchor="middle" font-family="Crimson Text" font-size="5" fill="#a08050">500 km</text>
+  </g>
+</svg>
+</div>
+
+<!-- Timeline -->
+<div class="timeline-wrapper">
+  <span class="timeline-label">27 BC</span>
+  <div class="timeline-track"><div id="timeline-fill"></div></div>
+  <span class="timeline-label">117 AD</span>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-swatch" style="background:linear-gradient(135deg,#c8502e,#8b2a12)"></div>
+    Roman Territory
+  </div>
+  <div class="legend-item">
+    <div class="legend-swatch" style="background:#1a2e40"></div>
+    Sea
+  </div>
+  <div class="legend-item">
+    <div class="legend-swatch" style="background:#2e2416"></div>
+    Non-Roman Land
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button id="btn-play">▶ PLAY</button>
+  <button id="btn-reset">↺ RESET</button>
+</div>
+
+<script>
+  const ERAS = [
+    {
+      id: 'era1',
+      year: '27 BC',
+      subtitle: 'Augustus — The First Principate',
+      timeline: 0,
+      cities: ['rome'],
+    },
+    {
+      id: 'era2',
+      year: '9 BC',
+      subtitle: 'Augustus — Iberia & Gaul Consolidated',
+      timeline: 15,
+      cities: ['hispalis', 'lutetia'],
+    },
+    {
+      id: 'era3',
+      year: '14 AD',
+      subtitle: 'Augustus — Egypt, Syria & Balkans',
+      timeline: 40,
+      cities: ['carthago', 'alexandria', 'antioch', 'byzantium'],
+    },
+    {
+      id: 'era4',
+      year: '54 AD',
+      subtitle: 'Claudius — Britannia & Thrace',
+      timeline: 65,
+      cities: ['londinium'],
+    },
+    {
+      id: 'era5',
+      year: '117 AD',
+      subtitle: 'Trajan — Maximum Extent of the Empire',
+      timeline: 100,
+      cities: ['ctesiphon', 'dacia'],
+    },
+  ];
+
+  let currentEra = -1;
+  let playing = false;
+  let timer = null;
+
+  function showEra(index) {
+    const era = ERAS[index];
+
+    // Show all territories up to and including this era
+    for (let i = 0; i <= index; i++) {
+      const el = document.getElementById(ERAS[i].id);
+      if (el) el.classList.add('visible');
+    }
+
+    // Show cities for this era
+    era.cities.forEach(c => {
+      const dot = document.getElementById('city-' + c);
+      const lbl = document.getElementById('label-' + c);
+      if (dot) dot.classList.add('visible');
+      if (lbl) lbl.classList.add('visible');
+    });
+
+    // Update text
+    document.getElementById('era-display').textContent = era.year;
+    document.getElementById('era-subtitle').textContent = era.subtitle;
+
+    // Update timeline
+    document.getElementById('timeline-fill').style.width = era.timeline + '%';
+
+    currentEra = index;
+  }
+
+  function resetAll() {
+    clearTimeout(timer);
+    playing = false;
+    currentEra = -1;
+    document.getElementById('btn-play').textContent = '▶ PLAY';
+
+    // Hide all territories
+    ERAS.forEach(era => {
+      const el = document.getElementById(era.id);
+      if (el) el.classList.remove('visible');
+      era.cities.forEach(c => {
+        const dot = document.getElementById('city-' + c);
+        const lbl = document.getElementById('label-' + c);
+        if (dot) dot.classList.remove('visible');
+        if (lbl) lbl.classList.remove('visible');
+      });
+    });
+
+    document.getElementById('era-display').textContent = '27 BC';
+    document.getElementById('era-subtitle').textContent = 'Click PLAY to begin';
+    document.getElementById('timeline-fill').style.width = '0%';
+  }
+
+  function playNext() {
+    const next = currentEra + 1;
+    if (next >= ERAS.length) {
+      playing = false;
+      document.getElementById('btn-play').textContent = '▶ PLAY';
+      return;
+    }
+    showEra(next);
+    if (next < ERAS.length - 1) {
+      timer = setTimeout(playNext, 2800);
+    } else {
+      playing = false;
+      document.getElementById('btn-play').textContent = '▶ PLAY';
+    }
+  }
+
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if (playing) return;
+    if (currentEra >= ERAS.length - 1) resetAll();
+    playing = true;
+    document.getElementById('btn-play').textContent = '⏸ PLAYING...';
+    playNext();
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', resetAll);
+
+  // Auto-play on load for the recording
+  setTimeout(() => {
+    document.getElementById('btn-play').click();
+  }, 1200);
+</script>
+
+</body>
+</html>
