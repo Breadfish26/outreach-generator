@@ -1,6 +1,44 @@
 import { AiPromptParams, EmailTemplate, EmailStep } from '../types';
 
-const API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+
+async function fetchWithFallback(prompt: string, apiKey: string): Promise<any> {
+  let lastError: Error | null = null;
+
+  for (const model of MODELS) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    try {
+      const response = await fetch(`${endpoint}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || "API Request failed";
+        throw new Error(`[${model}] ${errorMessage}`);
+      }
+
+      const data = await response.json();
+      let content = data.candidates[0].content.parts[0].text;
+      content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(content);
+    } catch (error: any) {
+      console.warn(`Failed with ${model}: ${error.message}`);
+      lastError = error;
+      // Continue to the next model in the fallback array
+      continue;
+    }
+  }
+
+  throw new Error(`All models failed due to high demand or API limits. Last error: ${lastError?.message}`);
+}
 
 export async function generateFullSequenceAi(params: AiPromptParams, apiKey: string): Promise<Record<EmailStep, EmailTemplate>> {
   const { painPoint, company, website, notes } = params;
@@ -58,26 +96,7 @@ ANTWORTE NUR ALS REINES JSON OBJEKT MIT DIESER STRUKTUR:
 `;
 
   try {
-    const response = await fetch(`${API_ENDPOINT}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || "API Request failed");
-    }
-
-    const data = await response.json();
-    let content = data.candidates[0].content.parts[0].text;
-    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(content);
+    return (await fetchWithFallback(prompt, apiKey)) as Record<EmailStep, EmailTemplate>;
   } catch (error) {
     console.error("AI Generation Error:", error);
     throw error;
@@ -111,26 +130,7 @@ ANTWORTE NUR IM FOLGENDEN JSON FORMAT:
 `;
 
   try {
-    const response = await fetch(`${API_ENDPOINT}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-        }
-      })
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || "API Request failed");
-    }
-
-    const data = await response.json();
-    let content = data.candidates[0].content.parts[0].text;
-    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(content) as EmailTemplate;
+    return (await fetchWithFallback(prompt, apiKey)) as EmailTemplate;
   } catch (error) {
     console.error("AI Generation Error:", error);
     throw error;
